@@ -1,0 +1,138 @@
+@import "tailwindcss";
+
+/* ========= GenFlow Design Tokens ========= */
+:root {
+  --background: #0a0a0f;
+  --foreground: #e4e4e7;
+  --surface: #13131a;
+  --surface-hover: #1c1c27;
+  --border: #27272a;
+  --border-glow: #6d28d9;
+  --accent-purple: #8b5cf6;
+  --accent-blue: #3b82f6;
+  --accent-green: #22c55e;
+  --accent-red: #ef4444;
+  --accent-orange: #f97316;
+  --accent-yellow: #eab308;
+  --accent-teal: #14b8a6;
+  --muted: #71717a;
+  --radius: 12px;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-surface: var(--surface);
+  --color-surface-hover: var(--surface-hover);
+  --color-border: var(--border);
+  --color-accent-purple: var(--accent-purple);
+  --color-accent-blue: var(--accent-blue);
+  --color-accent-green: var(--accent-green);
+  --color-accent-red: var(--accent-red);
+  --color-accent-orange: var(--accent-orange);
+  --color-accent-yellow: var(--accent-yellow);
+  --color-accent-teal: var(--accent-teal);
+  --color-muted: var(--muted);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+/* ========= Global Styles ========= */
+* {
+  box-sizing: border-box;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans), system-ui, sans-serif;
+}
+
+/* ========= Scrollbar Styling ========= */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--muted);
+}
+
+/* ========= React Flow Overrides ========= */
+.react-flow__background {
+  background: var(--background) !important;
+}
+.react-flow__edge-path {
+  stroke: var(--accent-purple) !important;
+  stroke-width: 2 !important;
+}
+.react-flow__edge.animated .react-flow__edge-path {
+  stroke-dasharray: 5;
+  animation: dashdraw 0.5s linear infinite;
+}
+@keyframes dashdraw {
+  to {
+    stroke-dashoffset: -10;
+  }
+}
+.react-flow__handle {
+  width: 10px !important;
+  height: 10px !important;
+  border: 2px solid var(--accent-purple) !important;
+  background: var(--surface) !important;
+  transition: all 0.2s ease;
+}
+.react-flow__handle:hover {
+  background: var(--accent-purple) !important;
+  box-shadow: 0 0 8px var(--accent-purple);
+}
+
+/* ========= Animated Gradient Background ========= */
+.canvas-bg {
+  background:
+    radial-gradient(ellipse at 20% 50%, rgba(139, 92, 246, 0.08) 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 20%, rgba(59, 130, 246, 0.06) 0%, transparent 50%),
+    var(--background);
+}
+
+/* ========= Glassmorphism Card ========= */
+.glass-card {
+  background: rgba(19, 19, 26, 0.85);
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  transition: all 0.2s ease;
+}
+.glass-card:hover {
+  border-color: rgba(139, 92, 246, 0.3);
+  box-shadow: 0 0 20px rgba(139, 92, 246, 0.08);
+}
+
+/* ========= Node Validation Pulse ========= */
+@keyframes pulse-error {
+  0%, 100% { border-color: var(--accent-red); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.3); }
+  50% { border-color: var(--accent-red); box-shadow: 0 0 12px 2px rgba(239, 68, 68, 0.2); }
+}
+.node-error {
+  animation: pulse-error 2s ease-in-out infinite;
+}
+
+/* ========= Copy Button Success ========= */
+@keyframes copy-flash {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.1); }
+  100% { transform: scale(1); }
+}
+.copy-success {
+  animation: copy-flash 0.3s ease;
+}
+
+/* ========= Monaco Editor Container ========= */
+.monaco-container .monaco-editor {
+  border-radius: 0 0 var(--radius) var(--radius);
+}
