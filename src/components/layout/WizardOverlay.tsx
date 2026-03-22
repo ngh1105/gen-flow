@@ -31,45 +31,45 @@ const GOALS = [
     label: "Store Data",
     desc: "Simple on-chain key-value storage",
     icon: Database,
-    color: "text-orange-400",
-    bg: "bg-orange-500/10",
-    border: "border-orange-500/30",
+    color: "text-foreground",
+    bg: "bg-surface",
+    border: "border-border",
   },
   {
     id: "analyze",
     label: "Analyze Web Data",
     desc: "Fetch a URL and process the result",
     icon: Globe,
-    color: "text-blue-400",
-    bg: "bg-blue-500/10",
-    border: "border-blue-500/30",
+    color: "text-foreground",
+    bg: "bg-surface",
+    border: "border-border",
   },
   {
     id: "ai",
     label: "AI Decision",
     desc: "Use AI to evaluate, judge, or decide",
     icon: Brain,
-    color: "text-purple-400",
-    bg: "bg-purple-500/10",
-    border: "border-purple-500/30",
+    color: "text-foreground",
+    bg: "bg-surface",
+    border: "border-border",
   },
   {
     id: "predict",
     label: "Predict Outcomes",
     desc: "Resolve predictions using real-world data",
     icon: Zap,
-    color: "text-yellow-400",
-    bg: "bg-yellow-500/10",
-    border: "border-yellow-500/30",
+    color: "text-foreground",
+    bg: "bg-surface",
+    border: "border-border",
   },
   {
     id: "custom",
     label: "Something Else",
     desc: "I'll compose my own from scratch",
     icon: Puzzle,
-    color: "text-indigo-400",
-    bg: "bg-indigo-500/10",
-    border: "border-indigo-500/30",
+    color: "text-foreground",
+    bg: "bg-surface",
+    border: "border-border",
   },
 ];
 
@@ -254,16 +254,16 @@ export default function WizardOverlay({ open, onClose }: WizardOverlayProps) {
       />
 
       {/* Modal */}
-      <div className="relative w-full max-w-lg mx-4 rounded-2xl border border-border bg-surface shadow-2xl shadow-black/40 overflow-hidden">
+      <div className="relative w-full max-w-lg mx-4 rounded-none border border-border bg-surface shadow-none shadow-none overflow-hidden">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-border">
           <div className="flex items-center gap-2">
-            <Sparkles className="w-5 h-5 text-accent-purple" />
+            <Sparkles className="w-5 h-5 text-foreground" />
             <h2 className="text-lg font-bold">Smart Wizard</h2>
           </div>
           <button
             onClick={onClose}
-            className="flex items-center justify-center w-8 h-8 rounded-lg hover:bg-surface-hover transition-all"
+            className="flex items-center justify-center w-8 h-8 rounded-none hover:bg-surface-hover transition-all duration-150"
           >
             <X className="w-4 h-4 text-muted" />
           </button>
@@ -275,9 +275,9 @@ export default function WizardOverlay({ open, onClose }: WizardOverlayProps) {
             {steps.map((s, i) => (
               <div
                 key={s}
-                className={`flex-1 h-1 rounded-full transition-all ${
+                className={`flex-1 h-1 rounded-none transition-all duration-150 ${
                   i <= currentIndex
-                    ? "bg-accent-purple"
+                    ? "bg-foreground"
                     : "bg-border"
                 }`}
               />
@@ -292,7 +292,7 @@ export default function WizardOverlay({ open, onClose }: WizardOverlayProps) {
         <div className="px-6 py-5 min-h-[300px]">
           {step === "goal" && (
             <>
-              <h3 className="text-base font-semibold mb-1">
+              <h3 className="text-base font-display font-medium mb-1">
                 What do you want your contract to do?
               </h3>
               <p className="text-xs text-muted mb-4">
@@ -306,10 +306,10 @@ export default function WizardOverlay({ open, onClose }: WizardOverlayProps) {
                     <button
                       key={g.id}
                       onClick={() => setAnswers((a) => ({ ...a, goal: g.id }))}
-                      className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl border transition-all text-left ${
+                      className={`w-full flex items-center gap-3 px-4 py-3 rounded-none border transition-all duration-150 text-left ${
                         selected
                           ? `${g.bg} ${g.border} border`
-                          : "border-border hover:border-accent-purple/20 hover:bg-surface-hover"
+                          : "border-border hover:border-foreground hover:bg-surface-hover"
                       }`}
                     >
                       <Icon className={`w-5 h-5 shrink-0 ${selected ? g.color : "text-muted"}`} />
@@ -331,7 +331,7 @@ export default function WizardOverlay({ open, onClose }: WizardOverlayProps) {
 
           {step === "data" && (
             <>
-              <h3 className="text-base font-semibold mb-1">
+              <h3 className="text-base font-display font-medium mb-1">
                 Where does the data come from?
               </h3>
               <p className="text-xs text-muted mb-4">
@@ -345,21 +345,21 @@ export default function WizardOverlay({ open, onClose }: WizardOverlayProps) {
                     <button
                       key={d.id}
                       onClick={() => setAnswers((a) => ({ ...a, dataSource: d.id }))}
-                      className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl border transition-all text-left ${
+                      className={`w-full flex items-center gap-3 px-4 py-3 rounded-none border transition-all duration-150 text-left ${
                         selected
-                          ? "bg-accent-purple/10 border-accent-purple/30"
-                          : "border-border hover:border-accent-purple/20 hover:bg-surface-hover"
+                          ? "bg-foreground border-foreground"
+                          : "border-border hover:border-foreground hover:bg-surface-hover"
                       }`}
                     >
-                      <Icon className={`w-5 h-5 shrink-0 ${selected ? "text-accent-purple" : "text-muted"}`} />
+                      <Icon className={`w-5 h-5 shrink-0 ${selected ? "text-foreground" : "text-muted"}`} />
                       <div>
-                        <p className={`text-sm font-medium ${selected ? "text-accent-purple" : ""}`}>
+                        <p className={`text-sm font-medium ${selected ? "text-foreground" : ""}`}>
                           {d.label}
                         </p>
                         <p className="text-[11px] text-muted">{d.desc}</p>
                       </div>
                       {selected && (
-                        <CheckCircle2 className="w-4 h-4 ml-auto shrink-0 text-accent-purple" />
+                        <CheckCircle2 className="w-4 h-4 ml-auto shrink-0 text-foreground" />
                       )}
                     </button>
                   );
@@ -370,7 +370,7 @@ export default function WizardOverlay({ open, onClose }: WizardOverlayProps) {
 
           {step === "consensus" && (
             <>
-              <h3 className="text-base font-semibold mb-1">
+              <h3 className="text-base font-display font-medium mb-1">
                 How should validators agree?
               </h3>
               <p className="text-xs text-muted mb-4">
@@ -383,18 +383,18 @@ export default function WizardOverlay({ open, onClose }: WizardOverlayProps) {
                     <button
                       key={c.id}
                       onClick={() => setAnswers((a) => ({ ...a, consensus: c.id }))}
-                      className={`w-full px-4 py-3 rounded-xl border transition-all text-left ${
+                      className={`w-full px-4 py-3 rounded-none border transition-all duration-150 text-left ${
                         selected
-                          ? "bg-accent-purple/10 border-accent-purple/30"
-                          : "border-border hover:border-accent-purple/20 hover:bg-surface-hover"
+                          ? "bg-foreground border-foreground"
+                          : "border-border hover:border-foreground hover:bg-surface-hover"
                       }`}
                     >
                       <div className="flex items-center justify-between">
-                        <p className={`text-sm font-medium ${selected ? "text-accent-purple" : ""}`}>
+                        <p className={`text-sm font-medium ${selected ? "text-foreground" : ""}`}>
                           {c.label}
                         </p>
                         {selected && (
-                          <CheckCircle2 className="w-4 h-4 shrink-0 text-accent-purple" />
+                          <CheckCircle2 className="w-4 h-4 shrink-0 text-foreground" />
                         )}
                       </div>
                       <p className="text-[11px] text-muted mt-0.5">{c.desc}</p>
@@ -410,18 +410,18 @@ export default function WizardOverlay({ open, onClose }: WizardOverlayProps) {
 
           {step === "result" && (
             <>
-              <h3 className="text-base font-semibold mb-1">
+              <h3 className="text-base font-display font-medium mb-1">
                 Perfect! Here&apos;s your match
               </h3>
               <p className="text-xs text-muted mb-5">
                 Based on your answers, we recommend this template:
               </p>
 
-              <div className="p-5 rounded-xl border border-accent-purple/30 bg-accent-purple/5 text-center">
-                <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-gradient-to-br from-accent-purple to-accent-blue mb-3">
-                  <Sparkles className="w-7 h-7 text-white" />
+              <div className="p-5 rounded-none border border-foreground bg-foreground text-center">
+                <div className="inline-flex items-center justify-center w-14 h-14 rounded-none bg-foreground mb-3">
+                  <Sparkles className="w-7 h-7 text-foreground" />
                 </div>
-                <p className="text-lg font-bold text-accent-purple mb-1">
+                <p className="text-lg font-bold text-foreground mb-1">
                   {resolvedTemplate.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}
                 </p>
                 <p className="text-xs text-muted">
@@ -429,23 +429,23 @@ export default function WizardOverlay({ open, onClose }: WizardOverlayProps) {
                 </p>
               </div>
 
-              <div className="mt-4 p-3 rounded-lg bg-surface-hover border border-border">
-                <p className="text-[10px] text-muted uppercase tracking-wider font-semibold mb-2">
+              <div className="mt-4 p-3 rounded-none bg-surface-hover border border-border">
+                <p className="text-[10px] text-muted uppercase tracking-widest font-display font-medium mb-2">
                   Your choices
                 </p>
                 <div className="flex flex-wrap gap-2">
                   {answers.goal && (
-                    <span className="text-[11px] px-2 py-1 rounded-lg bg-orange-500/10 text-orange-400 border border-orange-500/20">
+                    <span className="text-[11px] px-2 py-1 rounded-none bg-surface text-foreground border border-border">
                       {GOALS.find((g) => g.id === answers.goal)?.label}
                     </span>
                   )}
                   {answers.dataSource && answers.dataSource !== "none" && (
-                    <span className="text-[11px] px-2 py-1 rounded-lg bg-blue-500/10 text-blue-400 border border-blue-500/20">
+                    <span className="text-[11px] px-2 py-1 rounded-none bg-surface text-foreground border border-border">
                       {DATA_SOURCES.find((d) => d.id === answers.dataSource)?.label}
                     </span>
                   )}
                   {answers.consensus && answers.consensus !== "none" && (
-                    <span className="text-[11px] px-2 py-1 rounded-lg bg-purple-500/10 text-purple-400 border border-purple-500/20">
+                    <span className="text-[11px] px-2 py-1 rounded-none bg-surface text-foreground border border-border">
                       {CONSENSUS_TYPES.find((c) => c.id === answers.consensus)?.label}
                     </span>
                   )}
@@ -459,7 +459,7 @@ export default function WizardOverlay({ open, onClose }: WizardOverlayProps) {
         <div className="flex items-center justify-between px-6 py-4 border-t border-border">
           <button
             onClick={currentIndex > 0 ? handleBack : onClose}
-            className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm text-muted hover:text-foreground hover:bg-surface-hover transition-all"
+            className="flex items-center gap-1.5 px-4 py-2 rounded-none text-sm text-muted hover:text-foreground hover:bg-surface-hover transition-all duration-150"
           >
             <ArrowLeft className="w-3.5 h-3.5" />
             {currentIndex > 0 ? "Back" : "Cancel"}
@@ -468,7 +468,7 @@ export default function WizardOverlay({ open, onClose }: WizardOverlayProps) {
           {step === "result" ? (
             <button
               onClick={() => handleFinish()}
-              className="flex items-center gap-1.5 px-5 py-2.5 rounded-xl bg-gradient-to-r from-accent-purple to-accent-blue text-white text-sm font-semibold hover:opacity-90 transition-opacity"
+              className="flex items-center gap-1.5 px-5 py-2.5 rounded-none bg-foreground text-background text-sm font-display font-medium hover:opacity-90 transition-all duration-150"
             >
               <Sparkles className="w-4 h-4" />
               Start Building
@@ -477,9 +477,9 @@ export default function WizardOverlay({ open, onClose }: WizardOverlayProps) {
             <button
               onClick={handleNext}
               disabled={!canProceed()}
-              className={`flex items-center gap-1.5 px-5 py-2.5 rounded-xl text-sm font-semibold transition-all ${
+              className={`flex items-center gap-1.5 px-5 py-2.5 rounded-none text-sm font-display font-medium transition-all duration-150 ${
                 canProceed()
-                  ? "bg-accent-purple/15 text-accent-purple hover:bg-accent-purple/25 border border-accent-purple/25"
+                  ? "bg-foreground text-background hover:opacity-90 active:scale-[0.98] hover:bg-foreground border border-foreground"
                   : "bg-border text-muted cursor-not-allowed"
               }`}
             >

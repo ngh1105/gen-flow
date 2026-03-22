@@ -131,7 +131,7 @@ export default function CanvasPanel() {
           color="rgba(113, 113, 122, 0.15)"
         />
         <Controls
-          className="!bg-surface !border-border !rounded-lg !shadow-lg [&>button]:!bg-surface [&>button]:!border-border [&>button]:!text-foreground [&>button:hover]:!bg-surface-hover"
+          className="!bg-surface !border-border !rounded-none !shadow-none [&>button]:!bg-surface [&>button]:!border-border [&>button]:!text-foreground [&>button:hover]:!bg-surface-hover"
           showInteractive={false}
         />
       </ReactFlow>

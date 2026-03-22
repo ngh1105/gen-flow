@@ -8,6 +8,8 @@ const baseNodeData: NodeData = {
   prompt: "Summarize the content",
   numValidators: 3,
   storageName: "items",
+  storageFields: [],
+  constructorArgs: [],
 };
 
 describe("generateCode — template mode", () => {
@@ -114,5 +116,74 @@ describe("generateCode — custom-compose mode", () => {
     // should NOT have standalone 'result: str' field, only 'external_result: str'
     expect(code).not.toMatch(/^\s+result: str$/m);
     expect(code).toContain("external_result: str");
+  });
+
+  it("keeps valid constructor args and ignores invalid names", () => {
+    const nodes = [{ id: "n1", type: "initNode", position: { x: 0, y: 0 }, data: {} }];
+    const code = generateCode(
+      {
+        ...baseNodeData,
+        constructorArgs: [
+          { id: "ca-1", name: "valid_name", type: "str" },
+          { id: "ca-2", name: "1invalid", type: "str" },
+        ],
+      },
+      "custom-compose",
+      nodes
+    );
+    expect(code).toContain("def __init__(self, valid_name: str):");
+    expect(code).not.toContain("1invalid:");
+    expect(code).not.toContain("self.1invalid = 1invalid");
+    expect(code).toContain("self.valid_name = valid_name");
+  });
+
+  it("promotes constructor args to declared storage fields", () => {
+    const nodes = [{ id: "n1", type: "initNode", position: { x: 0, y: 0 }, data: {} }];
+    const code = generateCode(
+      {
+        ...baseNodeData,
+        constructorArgs: [{ id: "ca-1", name: "ephemeral", type: "str" }],
+      },
+      "custom-compose",
+      nodes
+    );
+
+    expect(code).toContain("ephemeral: str");
+    expect(code).toContain("def __init__(self, ephemeral: str):");
+    expect(code).toContain("self.ephemeral = ephemeral");
+  });
+
+  it("uses storage field type as canonical when ctor arg has same name with different type", () => {
+    const nodes = [{ id: "n1", type: "initNode", position: { x: 0, y: 0 }, data: {} }];
+    const code = generateCode(
+      {
+        ...baseNodeData,
+        storageFields: [{ id: "sf-1", name: "amount", type: "u256" }],
+        constructorArgs: [{ id: "ca-1", name: "amount", type: "str" }],
+      },
+      "custom-compose",
+      nodes
+    );
+
+    expect(code).toContain("amount: u256");
+    expect(code).toContain("def __init__(self, amount: u256):");
+    expect(code).not.toContain("def __init__(self, amount: str):");
+  });
+
+  it("does not allow reserved user field name to override generated result field", () => {
+    const nodes = [
+      { id: "n1", type: "initNode", position: { x: 0, y: 0 }, data: {} },
+      { id: "n2", type: "storageNode", position: { x: 0, y: 100 }, data: {} },
+    ];
+    const code = generateCode(
+      {
+        ...baseNodeData,
+        storageFields: [{ id: "sf-1", name: "result", type: "u256" }],
+      },
+      "custom-compose",
+      nodes
+    );
+    expect(code).not.toContain("result: u256");
+    expect(code).toContain("result: str");
   });
 });

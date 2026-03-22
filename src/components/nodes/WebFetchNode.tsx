@@ -21,16 +21,16 @@ export default function WebFetchNode() {
       />
 
       {/* Header */}
-      <div className="flex items-center gap-2 px-4 py-2.5 rounded-t-[11px] bg-gradient-to-r from-blue-600/20 to-blue-500/10 border-b border-blue-500/20">
-        <Globe className="w-4 h-4 text-blue-400" />
-        <span className="text-xs font-semibold text-blue-300 uppercase tracking-wider">
+      <div className="flex items-center gap-2 px-4 py-2.5 rounded-none bg-surface border-b border-border">
+        <Globe className="w-4 h-4 text-foreground" />
+        <span className="text-xs font-display font-medium text-foreground uppercase tracking-widest">
           Web Fetch
         </span>
       </div>
 
       {/* Body */}
       <div className="px-4 py-3">
-        <label className="block text-[11px] text-muted mb-1.5 uppercase tracking-wider">
+        <label className="block text-[11px] text-muted mb-1.5 uppercase tracking-widest">
           Data Source URL
         </label>
         <input
@@ -38,10 +38,10 @@ export default function WebFetchNode() {
           value={url}
           onChange={(e) => setUrl(e.target.value)}
           placeholder="https://example.com/data"
-          className="w-full px-3 py-2 text-sm bg-background/60 border border-border rounded-lg text-foreground placeholder:text-muted/50 focus:outline-none focus:border-accent-blue/50 focus:ring-1 focus:ring-accent-blue/20 transition-all font-mono text-xs"
+          className="w-full px-3 py-2 text-sm bg-background border border-border rounded-none text-foreground placeholder:text-muted/50 focus:outline-none focus:border-foreground focus:ring-1 focus:ring-foreground/20 transition-all duration-150 font-mono text-xs"
         />
         {isEmpty && (
-          <p className="mt-1.5 text-[10px] text-accent-red flex items-center gap-1">
+          <p className="mt-1.5 text-[10px] text-foreground flex items-center gap-1">
             ⚠ Required
           </p>
         )}

@@ -25,9 +25,9 @@ export default function LLMPromptNode() {
       />
 
       {/* Header */}
-      <div className="flex items-center gap-2 px-4 py-2.5 rounded-t-[11px] bg-gradient-to-r from-purple-600/20 to-purple-500/10 border-b border-purple-500/20">
-        <Brain className="w-4 h-4 text-purple-400" />
-        <span className="text-xs font-semibold text-purple-300 uppercase tracking-wider">
+      <div className="flex items-center gap-2 px-4 py-2.5 rounded-none bg-surface border-b border-border">
+        <Brain className="w-4 h-4 text-foreground" />
+        <span className="text-xs font-display font-medium text-foreground uppercase tracking-widest">
           LLM Prompt
         </span>
       </div>
@@ -36,7 +36,7 @@ export default function LLMPromptNode() {
       <div className="px-4 py-3 space-y-3">
         {/* Prompt Textarea */}
         <div>
-          <label className="block text-[11px] text-muted mb-1.5 uppercase tracking-wider">
+          <label className="block text-[11px] text-muted mb-1.5 uppercase tracking-widest">
             AI Instruction
           </label>
           <textarea
@@ -44,10 +44,10 @@ export default function LLMPromptNode() {
             onChange={(e) => setPrompt(e.target.value)}
             placeholder="Analyze this data and summarize the key findings..."
             rows={3}
-            className="w-full px-3 py-2 text-sm bg-background/60 border border-border rounded-lg text-foreground placeholder:text-muted/50 focus:outline-none focus:border-accent-purple/50 focus:ring-1 focus:ring-accent-purple/20 transition-all resize-none leading-relaxed"
+            className="w-full px-3 py-2 text-sm bg-background border border-border rounded-none text-foreground placeholder:text-muted/50 focus:outline-none focus:border-foreground focus:ring-1 focus:ring-foreground/20 transition-all duration-150 resize-none leading-relaxed"
           />
           {isEmpty && (
-            <p className="mt-1 text-[10px] text-accent-red flex items-center gap-1">
+            <p className="mt-1 text-[10px] text-foreground flex items-center gap-1">
               ⚠ Required
             </p>
           )}
@@ -56,10 +56,10 @@ export default function LLMPromptNode() {
         {/* Validator Slider */}
         <div>
           <div className="flex items-center justify-between mb-2">
-            <label className="text-[11px] text-muted uppercase tracking-wider">
+            <label className="text-[11px] text-muted uppercase tracking-widest">
               Validators
             </label>
-            <span className="text-xs font-mono font-bold text-accent-purple">
+            <span className="text-xs font-mono font-bold text-foreground">
               {numValidators}
             </span>
           </div>
@@ -69,11 +69,11 @@ export default function LLMPromptNode() {
                 key={val}
                 onClick={() => setNumValidators(val)}
                 className={`
-                  flex-1 py-1.5 text-xs font-semibold rounded-md transition-all
+                  flex-1 py-1.5 text-xs font-display font-medium rounded-none transition-all duration-150
                   ${
                     numValidators === val
-                      ? "bg-accent-purple/20 text-accent-purple border border-accent-purple/40 shadow-[0_0_8px_rgba(139,92,246,0.15)]"
-                      : "bg-background/40 text-muted border border-border hover:border-accent-purple/20 hover:text-foreground"
+                      ? "bg-foreground text-background hover:opacity-90 active:scale-[0.98] border border-foreground shadow-none"
+                      : "bg-background text-muted border border-border hover:border-foreground hover:text-foreground"
                   }
                 `}
               >

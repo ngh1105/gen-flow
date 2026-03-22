@@ -32,11 +32,11 @@ import json
 
 class {{CONTRACT_NAME}}(gl.Contract):
     moderation_result: str
-    flagged_count: int
+    flagged_count: u256
 
     def __init__(self):
         self.moderation_result = ""
-        self.flagged_count = 0
+        self.flagged_count = u256(0)
 
     @gl.public.write
     def moderate_content(self, content: str) -> str:
@@ -69,7 +69,7 @@ Analyze the content and return a JSON result:
 
         # Track flagged content count
         if '"FLAGGED"' in self.moderation_result or '"BLOCKED"' in self.moderation_result:
-            self.flagged_count += 1
+            self.flagged_count += u256(1)
 
         return self.moderation_result
 
@@ -79,7 +79,7 @@ Analyze the content and return a JSON result:
         return self.moderation_result
 
     @gl.public.view
-    def get_flagged_count(self) -> int:
+    def get_flagged_count(self) -> u256:
         """Returns total number of flagged/blocked content."""
         return self.flagged_count
 `,

@@ -29,18 +29,19 @@ function BuilderContent() {
         <div className="flex items-center gap-2">
           <button
             onClick={() => setWizardOpen(true)}
-            className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium text-accent-purple hover:bg-accent-purple/10 border border-accent-purple/20 transition-all"
+            className="flex items-center gap-1.5 px-2.5 py-1 rounded-none text-xs font-medium text-foreground hover:bg-surface-hover border border-foreground transition-all duration-150"
           >
             <Sparkles className="w-3.5 h-3.5" />
             Wizard
           </button>
-          <span className="text-[10px] text-muted uppercase tracking-wider font-semibold">
+          <span className="text-[10px] text-muted uppercase tracking-widest font-display font-medium">
             {editorMode === "visual" ? "Visual Builder" : "Code Editor"}
           </span>
         </div>
         <button
           onClick={() => setContractsOpen(true)}
-          className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium text-muted hover:text-foreground hover:bg-surface-hover border border-border transition-all"
+          data-testid="open-contracts-button"
+          className="flex items-center gap-1.5 px-2.5 py-1 rounded-none text-xs font-medium text-muted hover:text-foreground hover:bg-surface-hover border border-border transition-all duration-150"
         >
           <FolderOpen className="w-3.5 h-3.5" />
           My Contracts

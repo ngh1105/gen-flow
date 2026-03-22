@@ -14,9 +14,9 @@ export default function EventNode() {
       />
 
       {/* Header */}
-      <div className="flex items-center gap-2 px-4 py-2.5 rounded-t-[11px] bg-gradient-to-r from-yellow-600/20 to-yellow-500/10 border-b border-yellow-500/20">
-        <Zap className="w-4 h-4 text-yellow-400" />
-        <span className="text-xs font-semibold text-yellow-300 uppercase tracking-wider">
+      <div className="flex items-center gap-2 px-4 py-2.5 rounded-none bg-surface border-b border-border">
+        <Zap className="w-4 h-4 text-foreground" />
+        <span className="text-xs font-display font-medium text-foreground uppercase tracking-widest">
           Event Emitter
         </span>
       </div>
@@ -24,12 +24,12 @@ export default function EventNode() {
       {/* Body */}
       <div className="px-4 py-3 space-y-2">
         <div className="flex items-center gap-2 text-xs text-muted">
-          <div className="w-2 h-2 rounded-full bg-yellow-400/60" />
+          <div className="w-2 h-2 rounded-none bg-surface" />
           <span>Emit on-chain events</span>
         </div>
-        <div className="px-3 py-2 rounded-md bg-background/40 border border-border text-xs font-mono text-foreground/70">
-          <div>emit: <span className="text-yellow-300">state_change</span></div>
-          <div>data: <span className="text-yellow-300">result_json</span></div>
+        <div className="px-3 py-2 rounded-none bg-background border border-border text-xs font-mono text-foreground/70">
+          <div>emit: <span className="text-foreground">state_change</span></div>
+          <div>data: <span className="text-foreground">result_json</span></div>
         </div>
         <p className="text-[10px] text-muted/60 italic">
           Events trigger when contract state changes

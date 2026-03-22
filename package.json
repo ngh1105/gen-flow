@@ -1,17 +1,23 @@
 {
   "name": "genflow",
-  "version": "0.1.0",
+  "version": "1.0.0-rc.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start",
+    "start": "npx serve out -l 3000",
+    "serve": "npx serve out -l 3000",
+    "preview": "next build && npx serve out -l 3000",
     "lint": "eslint",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "release:check": "npm run lint && npm test && npm run build && npm run test:e2e && npm audit --omit=dev --json"
   },
   "dependencies": {
     "@monaco-editor/react": "^4.7.0",
+    "@sentry/browser": "^10.45.0",
     "@xyflow/react": "^12.10.1",
     "lucide-react": "^0.577.0",
     "next": "16.2.0",
@@ -20,6 +26,7 @@
     "zustand": "^5.0.12"
   },
   "devDependencies": {
+    "@playwright/test": "^1.58.2",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
@@ -29,5 +36,8 @@
     "tailwindcss": "^4",
     "typescript": "^5",
     "vitest": "^4.1.0"
+  },
+  "overrides": {
+    "dompurify": "^3.3.2"
   }
 }

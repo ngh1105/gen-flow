@@ -19,16 +19,16 @@ const CONCEPTS = [
     title: "Intelligent Contracts",
     description:
       "Unlike traditional smart contracts, GenLayer's Intelligent Contracts can interact with AI (LLMs) and access real-time web data. They run on the GenVM — a virtual machine designed to handle non-deterministic operations through consensus.",
-    color: "text-purple-400",
-    bg: "bg-purple-500/10",
+    color: "text-foreground",
+    bg: "bg-surface",
   },
   {
     icon: Globe,
     title: "Web Data Access",
     description:
       "Use gl.nondet.web.render(url) to fetch live data from any website directly inside your contract. This enables price feeds, news analysis, social media monitoring and more — all verified through consensus.",
-    color: "text-blue-400",
-    bg: "bg-blue-500/10",
+    color: "text-foreground",
+    bg: "bg-surface",
     code: `web_data = gl.nondet.web.render(\n    "https://example.com",\n    mode="text"\n)`,
   },
   {
@@ -36,8 +36,8 @@ const CONCEPTS = [
     title: "LLM Integration",
     description:
       "Call AI models directly from your contract using gl.nondet.exec_prompt(). The AI's response is validated through the Equivalence Principle to ensure consensus across validators.",
-    color: "text-emerald-400",
-    bg: "bg-emerald-500/10",
+    color: "text-foreground",
+    bg: "bg-surface",
     code: `result = gl.nondet.exec_prompt(\n    "Analyze this data and summarize"\n)`,
   },
   {
@@ -45,8 +45,8 @@ const CONCEPTS = [
     title: "Equivalence Principle",
     description:
       "Since AI and web data are non-deterministic (different each time), GenLayer uses the Equivalence Principle to reach consensus. Validators compare results and agree if they are 'equivalent enough'.",
-    color: "text-orange-400",
-    bg: "bg-orange-500/10",
+    color: "text-foreground",
+    bg: "bg-surface",
     code: `# Non-comparative: results should mean the same\ngl.eq_principle.prompt_non_comparative(\n    task, task="...", criteria="..."\n)\n\n# Comparative: numeric values within tolerance\ngl.eq_principle.prompt_comparative(\n    task, task="...", tolerance=0.05\n)`,
   },
   {
@@ -54,17 +54,17 @@ const CONCEPTS = [
     title: "Contract Storage",
     description:
       "State variables are declared as class attributes with types. Use @gl.public.write for methods that change state, and @gl.public.view for read-only methods.",
-    color: "text-yellow-400",
-    bg: "bg-yellow-500/10",
-    code: `class MyContract(gl.Contract):\n    result: str\n    count: int\n\n    @gl.public.write\n    def update(self, data: str):\n        self.result = data\n        self.count += 1\n\n    @gl.public.view\n    def get_result(self) -> str:\n        return self.result`,
+    color: "text-foreground",
+    bg: "bg-surface",
+    code: `class MyContract(gl.Contract):\n    result: str\n    count: u256\n\n    @gl.public.write\n    def update(self, data: str):\n        self.result = data\n        self.count += u256(1)\n\n    @gl.public.view\n    def get_result(self) -> str:\n        return self.result`,
   },
   {
     icon: Network,
     title: "Consensus & Validators",
     description:
       "When a write method is called, multiple validator nodes execute the contract independently. They compare results using the Equivalence Principle and reach consensus before committing to the blockchain.",
-    color: "text-teal-400",
-    bg: "bg-teal-500/10",
+    color: "text-foreground",
+    bg: "bg-surface",
   },
 ];
 
@@ -84,27 +84,27 @@ export default function LearnPage() {
   return (
     <div className="min-h-screen bg-background text-foreground">
       {/* Navigation */}
-      <nav className="sticky top-0 z-50 border-b border-border bg-surface/80 backdrop-blur-md">
+      <nav className="sticky top-0 z-50 border-b border-border bg-surface/80 ">
         <div className="max-w-4xl mx-auto px-6 py-3 flex items-center justify-between">
           <Link href="/" className="flex items-center gap-3">
-            <div className="flex items-center justify-center w-9 h-9 rounded-lg bg-gradient-to-br from-accent-purple to-accent-blue">
-              <Blocks className="w-5 h-5 text-white" />
+            <div className="flex items-center justify-center w-9 h-9 rounded-none bg-foreground">
+              <Blocks className="w-5 h-5 text-background" />
             </div>
             <span className="text-base font-bold">
-              Gen<span className="text-accent-purple">Flow</span>
+              Gen<span className="text-foreground">Flow</span>
             </span>
           </Link>
           <div className="flex items-center gap-3">
             <Link
               href="/"
-              className="flex items-center gap-1.5 text-sm text-muted hover:text-foreground transition-colors"
+              className="flex items-center gap-1.5 text-sm text-muted hover:text-foreground transition-colors duration-150"
             >
               <ArrowLeft className="w-3.5 h-3.5" />
               Home
             </Link>
             <Link
               href="/builder"
-              className="px-4 py-2 rounded-lg bg-accent-purple/15 text-accent-purple text-sm font-medium hover:bg-accent-purple/25 transition-all"
+              className="px-4 py-2 rounded-none bg-surface-hover text-foreground text-sm font-medium hover:bg-surface-hover transition-all duration-150"
             >
               Open Builder
             </Link>
@@ -115,8 +115,8 @@ export default function LearnPage() {
       {/* Hero */}
       <div className="max-w-4xl mx-auto px-6 py-16">
         <div className="flex items-center gap-2 mb-4">
-          <BookOpen className="w-5 h-5 text-accent-purple" />
-          <span className="text-sm font-semibold text-accent-purple uppercase tracking-wider">
+          <BookOpen className="w-5 h-5 text-foreground" />
+          <span className="text-sm font-display font-medium text-foreground uppercase tracking-widest">
             Quick Learn
           </span>
         </div>
@@ -134,11 +134,11 @@ export default function LearnPage() {
           return (
             <div
               key={concept.title}
-              className="p-6 rounded-xl border border-border bg-surface/50 hover:border-accent-purple/15 transition-all"
+              className="p-6 rounded-none border border-border bg-surface/50 hover:border-foreground transition-all duration-150"
             >
               <div className="flex items-start gap-4">
                 <div
-                  className={`flex items-center justify-center w-10 h-10 rounded-lg ${concept.bg} shrink-0 mt-0.5`}
+                  className={`flex items-center justify-center w-10 h-10 rounded-none ${concept.bg} shrink-0 mt-0.5`}
                 >
                   <Icon className={`w-5 h-5 ${concept.color}`} />
                 </div>
@@ -150,7 +150,7 @@ export default function LearnPage() {
                     {concept.description}
                   </p>
                   {concept.code && (
-                    <div className="bg-background/80 border border-border rounded-lg p-4 overflow-x-auto">
+                    <div className="bg-background border border-border rounded-none p-4 overflow-x-auto">
                       <pre className="text-xs font-mono text-foreground/80 whitespace-pre">
                         {concept.code}
                       </pre>
@@ -166,17 +166,17 @@ export default function LearnPage() {
       {/* API Reference */}
       <div className="max-w-4xl mx-auto px-6 pb-16">
         <div className="flex items-center gap-2 mb-6">
-          <Code2 className="w-5 h-5 text-accent-blue" />
+          <Code2 className="w-5 h-5 text-foreground" />
           <h3 className="text-2xl font-bold">API Quick Reference</h3>
         </div>
-        <div className="rounded-xl border border-border overflow-hidden">
+        <div className="rounded-none border border-border overflow-hidden">
           <table className="w-full">
             <thead>
               <tr className="border-b border-border bg-surface/80">
-                <th className="text-left px-4 py-2.5 text-xs font-semibold text-muted uppercase tracking-wider">
+                <th className="text-left px-4 py-2.5 text-xs font-display font-medium text-muted uppercase tracking-widest">
                   API
                 </th>
-                <th className="text-left px-4 py-2.5 text-xs font-semibold text-muted uppercase tracking-wider">
+                <th className="text-left px-4 py-2.5 text-xs font-display font-medium text-muted uppercase tracking-widest">
                   Description
                 </th>
               </tr>
@@ -188,7 +188,7 @@ export default function LearnPage() {
                   className={`border-b border-border/50 ${i % 2 === 0 ? "bg-surface/30" : ""}`}
                 >
                   <td className="px-4 py-2.5">
-                    <code className="text-xs font-mono text-accent-purple bg-accent-purple/5 px-1.5 py-0.5 rounded">
+                    <code className="text-xs font-mono text-foreground bg-surface-hover px-1.5 py-0.5 rounded">
                       {item.api}
                     </code>
                   </td>
@@ -205,7 +205,7 @@ export default function LearnPage() {
         <p className="text-muted mb-4">Ready to put this knowledge into practice?</p>
         <Link
           href="/builder"
-          className="inline-flex items-center gap-2 px-8 py-3 rounded-xl bg-gradient-to-r from-accent-purple to-accent-blue text-white font-semibold hover:opacity-90 transition-opacity shadow-lg shadow-accent-purple/20"
+          className="inline-flex items-center gap-2 px-8 py-3 rounded-none bg-foreground text-background font-display font-medium hover:opacity-90 transition-all duration-150 shadow-none shadow-none"
         >
           Open GenFlow Builder
           <Zap className="w-4 h-4" />
@@ -216,9 +216,9 @@ export default function LearnPage() {
       <footer className="border-t border-border py-6">
         <div className="max-w-4xl mx-auto px-6 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Blocks className="w-4 h-4 text-accent-purple" />
-            <span className="text-sm font-semibold">
-              Gen<span className="text-accent-purple">Flow</span>
+            <Blocks className="w-4 h-4 text-foreground" />
+            <span className="text-sm font-display font-medium">
+              Gen<span className="text-foreground">Flow</span>
             </span>
           </div>
           <p className="text-xs text-muted">Built for the GenLayer Ecosystem</p>
