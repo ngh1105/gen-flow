@@ -8,12 +8,13 @@ export default function ModeToggle() {
   const setEditorMode = useFlowStore((s) => s.setEditorMode);
 
   return (
-    <div className="flex items-center rounded-lg border border-border bg-background/60 p-0.5">
+    <div className="flex items-center rounded-none border border-border bg-background p-0.5">
       <button
         onClick={() => setEditorMode("visual")}
-        className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-all ${
+        data-testid="mode-toggle-visual"
+        className={`flex items-center gap-1.5 px-2.5 py-1 rounded-none text-xs font-medium transition-all duration-150 ${
           editorMode === "visual"
-            ? "bg-accent-purple/15 text-accent-purple border border-accent-purple/25 shadow-sm"
+            ? "bg-foreground text-background hover:opacity-90 active:scale-[0.98] border border-foreground shadow-sm"
             : "text-muted hover:text-foreground border border-transparent"
         }`}
       >
@@ -22,9 +23,10 @@ export default function ModeToggle() {
       </button>
       <button
         onClick={() => setEditorMode("code")}
-        className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-all ${
+        data-testid="mode-toggle-code"
+        className={`flex items-center gap-1.5 px-2.5 py-1 rounded-none text-xs font-medium transition-all duration-150 ${
           editorMode === "code"
-            ? "bg-accent-purple/15 text-accent-purple border border-accent-purple/25 shadow-sm"
+            ? "bg-foreground text-background hover:opacity-90 active:scale-[0.98] border border-foreground shadow-sm"
             : "text-muted hover:text-foreground border border-transparent"
         }`}
       >

@@ -3,7 +3,7 @@
 GenFlow is a visual builder for GenLayer Intelligent Contracts.
 You drag nodes, connect logic, and generate Python contract code in real time.
 
-This project is fully client-side (no backend) and currently in MVP stage.
+This project is fully client-side (no backend) and currently at release-candidate stage (`v1.0.0-rc.0`).
 
 ## What You Get
 
@@ -75,9 +75,16 @@ templates/                  # sample python contracts
 
 ```bash
 npm install
+npx playwright install chromium
 ```
 
-### 3. Run Dev Server
+### 3. Configure Environment
+
+```bash
+cp .env.example .env.local
+```
+
+### 4. Run Dev Server
 
 ```bash
 npm run dev
@@ -93,8 +100,11 @@ Open [http://localhost:3000](http://localhost:3000).
 | `npm run lint` | Run ESLint |
 | `npm test` | Run Vitest once |
 | `npm run test:watch` | Run Vitest in watch mode |
+| `npm run test:e2e` | Run Playwright smoke tests (Chromium) |
+| `npm run test:e2e:ui` | Open Playwright UI mode locally |
+| `npm run release:check` | Run full release quality gate pipeline |
 | `npm run build` | Build static export to `out/` |
-| `npm run start` | Not usable with `output: "export"` in this repo |
+| `npm run start` | Serve static `out/` on port `3000` (run `npm run build` first) |
 
 ## Build and Preview Production Output
 
@@ -109,11 +119,51 @@ Then open the local URL printed by `serve`.
 
 ## Current Quality Gates (Local Check)
 
-Checked on March 21, 2026:
+Checked on March 22, 2026:
 
 - `npm run build` -> pass
-- `npm test` -> pass (`26` tests)
-- `npm run lint` -> pass with `1` warning (`findFirstLine` unused in `src/engine/genvm-linter.ts`)
+- `npm test` -> pass (`39` tests)
+- `npm run test:e2e` -> pass (`5` Playwright smoke tests)
+- `npm run lint` -> pass
+- `npm audit --omit=dev --json` -> pass (`0` vulnerabilities)
+
+## CI Gates
+
+GitHub Actions workflow at `.github/workflows/ci.yml` now enforces:
+
+1. `npm run lint`
+2. `npm test`
+3. `npm run build`
+4. `npm audit --omit=dev --json`
+5. `npm run test:e2e` (Playwright smoke)
+
+Any failing gate should block merge to `main`.
+
+## Deployment Security Headers
+
+Because this project uses static export (`output: "export"`), security headers must be set at the host layer.
+
+- Cloudflare Pages / Netlify: [`public/_headers`](/public/_headers)
+- Vercel: [`vercel.json`](/vercel.json)
+
+## Observability (Sentry)
+
+Client-side runtime tracking is integrated via [`SentryInit.tsx`](/src/components/observability/SentryInit.tsx) and [`global-error.tsx`](/src/app/global-error.tsx).
+
+- Set `NEXT_PUBLIC_SENTRY_DSN` to enable reporting.
+- Optional tuning:
+  - `NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE`
+  - `NEXT_PUBLIC_SENTRY_REPLAYS_SESSION_SAMPLE_RATE`
+  - `NEXT_PUBLIC_SENTRY_REPLAYS_ON_ERROR_SAMPLE_RATE`
+
+See [`.env.example`](/.env.example) for all variables.
+
+## Governance
+
+- PR template: [`.github/PULL_REQUEST_TEMPLATE.md`](/.github/PULL_REQUEST_TEMPLATE.md)
+- Code ownership: [`.github/CODEOWNERS`](/.github/CODEOWNERS)
+- Release runbook: [`docs/RELEASE_CHECKLIST.md`](/docs/RELEASE_CHECKLIST.md)
+- Changelog: [`CHANGELOG.md`](/CHANGELOG.md)
 
 ## Data Persistence
 
@@ -129,7 +179,7 @@ No backend persistence, auth, or sync is included in MVP.
 If you want to push this toward production, prioritize:
 
 1. Add CI pipeline (lint + test + build on pull requests).
-2. Resolve remaining lint warning and enforce zero-warning policy.
+2. Keep zero-warning lint policy and block merges when quality gates fail.
 3. Add E2E tests for core builder flows (template switch, drag/drop, export).
 4. Add runtime error tracking and session replay.
 5. Add schema/versioning for localStorage data migrations.

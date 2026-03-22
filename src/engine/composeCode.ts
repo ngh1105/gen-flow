@@ -37,39 +37,120 @@ export function composeCode(
   if (hasLLM || hasWebFetch) imports.push("import json");
   if (hasVecDB) imports.push("from genlayer_embeddings import VecDB, SentenceTransformer");
 
+  // --- Helper: default init value for a GenVM type ---
+  function getDefaultForType(type: string): string {
+    if (type === "str") return '""';
+    if (type === "bool") return "False";
+    if (type === "Address") return "gl.message.sender_address";
+    if (type.startsWith("u") || type.startsWith("i") || type === "bigint") return `${type}(0)`;
+    if (type.startsWith("DynArray")) return `${type}()`;
+    if (type.startsWith("TreeMap")) return `${type}()`;
+    if (type === "VecDB") return 'VecDB(SentenceTransformer("all-MiniLM-L6-v2"))';
+    return '""';
+  }
+
   // --- Build storage fields ---
   const fields: string[] = [];
-  // result field needed by many nodes — add whenever it might be used
+  // Track declared field names to prevent duplicates between user-defined and auto-added
+  const declaredFieldNames = new Set<string>();
+  // Track field types so constructor args with the same name can be forced to a single canonical type
+  const declaredFieldTypes = new Map<string, string>();
+
+  // Python reserved words + GenFlow system-reserved names — cannot be used as field/arg names
+  const PYTHON_RESERVED = new Set(["False","None","True","and","as","assert","async","await",
+    "break","class","continue","def","del","elif","else","except","finally","for",
+    "from","global","if","import","in","is","lambda","nonlocal","not","or","pass",
+    "raise","return","self","try","while","with","yield"]);
+  const SYSTEM_RESERVED = new Set([
+    "result","external_result","consensus_result",
+    "owner","total_received","items","records","db","event_count",
+  ]);
+  const isValidName = (n: string) =>
+    /^[a-zA-Z_][a-zA-Z0-9_]*$/.test(n) && !PYTHON_RESERVED.has(n) && !SYSTEM_RESERVED.has(n);
+
+  // 1. User-defined fields from InitNode (highest priority)
+  for (const field of (nodeData.storageFields ?? [])) {
+    const name = field.name.trim();
+    if (name && isValidName(name) && !declaredFieldNames.has(name)) {
+      fields.push(`    ${name}: ${field.type}`);
+      declaredFieldNames.add(name);
+      declaredFieldTypes.set(name, field.type);
+    }
+  }
+
+  // 1.5 Constructor args with valid names become declared storage fields too.
+  // This keeps UI behavior intuitive: args entered in InitNode are reflected in schema.
+  const ctorArgTypeByName = new Map<string, string>();
+  for (const arg of (nodeData.constructorArgs ?? [])) {
+    const name = arg.name.trim();
+    if (isValidName(name) && !ctorArgTypeByName.has(name)) {
+      // If user defines a storage field with same name, its type is canonical for both schema + __init__ signature.
+      const canonicalType = declaredFieldTypes.get(name) ?? arg.type;
+      ctorArgTypeByName.set(name, canonicalType);
+    }
+  }
+  for (const [name, type] of ctorArgTypeByName.entries()) {
+    if (!declaredFieldNames.has(name)) {
+      fields.push(`    ${name}: ${type}`);
+      declaredFieldNames.add(name);
+      declaredFieldTypes.set(name, type);
+    }
+  }
+
+  // 2. Auto-added fields from node types (skip if user already declared same name)
   const needsResult = hasStorage || hasWebFetch || hasLLM || hasHTTP || hasOutput
     || hasDynArray || hasTreeMap || hasVecDB || hasConsensus;
-  if (needsResult) {
+  if (needsResult && !declaredFieldNames.has("result")) {
     fields.push("    result: str");
+    declaredFieldNames.add("result");
+    declaredFieldTypes.set("result", "str");
   }
-  if (hasEvent || hasEventEmit) {
+  if ((hasEvent || hasEventEmit) && !declaredFieldNames.has("event_count")) {
     fields.push("    event_count: u256");
+    declaredFieldNames.add("event_count");
+    declaredFieldTypes.set("event_count", "u256");
   }
   if (hasPayable) {
-    fields.push("    owner: Address");
-    fields.push("    total_received: u256");
+    if (!declaredFieldNames.has("owner")) {
+      fields.push("    owner: Address");
+      declaredFieldNames.add("owner");
+      declaredFieldTypes.set("owner", "Address");
+    }
+    if (!declaredFieldNames.has("total_received")) {
+      fields.push("    total_received: u256");
+      declaredFieldNames.add("total_received");
+      declaredFieldTypes.set("total_received", "u256");
+    }
   }
-  if (hasContractCall) {
+  if (hasContractCall && !declaredFieldNames.has("external_result")) {
     fields.push("    external_result: str");
+    declaredFieldNames.add("external_result");
+    declaredFieldTypes.set("external_result", "str");
   }
-  if (hasDynArray) {
+  if (hasDynArray && !declaredFieldNames.has("items")) {
     fields.push("    items: DynArray[str]");
+    declaredFieldNames.add("items");
+    declaredFieldTypes.set("items", "DynArray[str]");
   }
-  if (hasTreeMap) {
+  if (hasTreeMap && !declaredFieldNames.has("records")) {
     fields.push("    records: TreeMap[Address, str]");
+    declaredFieldNames.add("records");
+    declaredFieldTypes.set("records", "TreeMap[Address, str]");
   }
-  if (hasAccessControl && !hasPayable) {
-    // Only add owner if payable hasn't already declared it
+  if (hasAccessControl && !hasPayable && !declaredFieldNames.has("owner")) {
     fields.push("    owner: Address");
+    declaredFieldNames.add("owner");
+    declaredFieldTypes.set("owner", "Address");
   }
-  if (hasVecDB) {
+  if (hasVecDB && !declaredFieldNames.has("db")) {
     fields.push("    db: VecDB");
+    declaredFieldNames.add("db");
+    declaredFieldTypes.set("db", "VecDB");
   }
-  if (hasConsensus) {
+  if (hasConsensus && !declaredFieldNames.has("consensus_result")) {
     fields.push("    consensus_result: str");
+    declaredFieldNames.add("consensus_result");
+    declaredFieldTypes.set("consensus_result", "str");
   }
 
   // --- Build Event class (before contract) ---
@@ -98,34 +179,68 @@ export function composeCode(
   }
 
   // --- Build __init__ ---
+  // Constructor signature uses deduplicated, validated constructor args.
+  const ctorArgs = Array.from(ctorArgTypeByName.entries())
+    .map(([name, type]) => `${name}: ${type}`)
+    .join(", ");
+  const ctorSignature = ctorArgs ? `self, ${ctorArgs}` : "self";
   const initLines: string[] = [];
-  if (needsResult) {
+
+  // 1. User-defined field inits — only for valid, declared fields
+  const userInitedNames = new Set<string>();
+  for (const field of (nodeData.storageFields ?? [])) {
+    const name = field.name.trim();
+    // Skip invalid names — same guard as field declarations above
+    if (name && isValidName(name)) {
+      if (ctorArgTypeByName.has(name)) {
+        initLines.push(`        self.${name} = ${name}`);
+      } else {
+        initLines.push(`        self.${name} = ${getDefaultForType(field.type)}`);
+      }
+      userInitedNames.add(name);
+    }
+  }
+
+  // 2. Constructor args that aren't explicit storageFields (still valid and declared in step 1.5)
+  for (const [name] of ctorArgTypeByName.entries()) {
+    if (!userInitedNames.has(name)) {
+      initLines.push(`        self.${name} = ${name}`);
+      userInitedNames.add(name);
+    }
+  }
+
+  // 3. Auto-added inits from node types (skip already inited)
+  if (needsResult && !userInitedNames.has("result")) {
     initLines.push('        self.result = ""');
   }
-  if (hasEvent || hasEventEmit) {
+  if ((hasEvent || hasEventEmit) && !userInitedNames.has("event_count")) {
     initLines.push("        self.event_count = u256(0)");
   }
   if (hasPayable) {
-    initLines.push("        self.owner = gl.message.sender_address");
-    initLines.push("        self.total_received = u256(0)");
+    if (!userInitedNames.has("owner")) {
+      initLines.push("        self.owner = gl.message.sender_address");
+    }
+    if (!userInitedNames.has("total_received")) {
+      initLines.push("        self.total_received = u256(0)");
+    }
   }
-  if (hasContractCall) {
+  if (hasContractCall && !userInitedNames.has("external_result")) {
     initLines.push('        self.external_result = ""');
   }
-  if (hasDynArray) {
+  if (hasDynArray && !userInitedNames.has("items")) {
     initLines.push("        self.items = DynArray[str]()");
   }
-  if (hasTreeMap) {
+  if (hasTreeMap && !userInitedNames.has("records")) {
     initLines.push("        self.records = TreeMap[Address, str]()");
   }
-  if (hasAccessControl && !hasPayable) {
+  if (hasAccessControl && !hasPayable && !userInitedNames.has("owner")) {
     initLines.push("        self.owner = gl.message.sender_address");
   }
-  if (hasVecDB) {
+  if (hasVecDB && !userInitedNames.has("db")) {
     initLines.push('        model = SentenceTransformer("all-MiniLM-L6-v2")');
     initLines.push("        self.db = VecDB(model)");
   }
-  if (hasConsensus) {
+  if (hasConsensus && !userInitedNames.has("consensus_result")) {
     initLines.push('        self.consensus_result = ""');
   }
 
@@ -343,7 +458,7 @@ export function composeCode(
     code += fields.join("\n") + "\n\n";
   }
 
-  code += "    def __init__(self):\n";
+  code += `    def __init__(${ctorSignature}):\n`;
   if (initLines.length > 0) {
     code += initLines.join("\n") + "\n\n";
   } else {

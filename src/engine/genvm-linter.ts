@@ -1,10 +1,12 @@
 /**
  * GenVM Linter — Client-side rule-based linter for GenLayer Intelligent Contracts.
  *
- * Validates generated Python code against GenVM spec and produces diagnostics
- * with quick-fix suggestions compatible with Monaco Editor.
+ * Rules aligned with the official genlayerlabs/genvm-linter:
+ *   - Safety rules (E02x): forbidden imports, forbidden calls, nondet safety
+ *   - Structure rules (W010/W011, E011–E022): contract structure, storage types, decorators
  *
- * Rules are pure string/regex matching — no AST parsing, no backend.
+ * This is a regex/string-based implementation — no Python AST, no backend.
+ * Produces Monaco-compatible diagnostics with optional quick-fix suggestions.
  */
 
 // ---------------------------------------------------------------------------
@@ -14,11 +16,11 @@
 export interface QuickFix {
   /** Label shown in Monaco lightbulb menu */
   label: string;
-  /** Replacement text */
+  /** Replacement text for the affected lines */
   replacement: string;
-  /** If set, replaces range; otherwise inserts at diagnostic line */
+  /** Line range to replace (1-indexed, inclusive). If omitted uses diagnostic line. */
   replaceRange?: { startLine: number; endLine: number };
-  /** If true, inserts before the diagnostic line instead of replacing */
+  /** If true, insert `replacement` as a new line BEFORE `line` instead of replacing */
   insertBefore?: boolean;
 }
 
@@ -28,6 +30,7 @@ export interface LintDiagnostic {
   endCol: number;
   severity: "error" | "warning" | "info";
   message: string;
+  /** Matches official genvm-linter rule IDs (E011, W020, etc.) */
   ruleId: string;
   quickFix?: QuickFix;
 }
@@ -36,73 +39,250 @@ export interface LintDiagnostic {
 // Helpers
 // ---------------------------------------------------------------------------
 
-function lines(code: string): string[] {
+function getLines(code: string): string[] {
   return code.split("\n");
 }
 
-function findLine(codeLines: string[], pattern: RegExp | string): number {
-  for (let i = 0; i < codeLines.length; i++) {
-    if (typeof pattern === "string" ? codeLines[i].includes(pattern) : pattern.test(codeLines[i])) {
-      return i + 1; // 1-indexed
-    }
-  }
-  return -1;
+interface FunctionRange {
+  name: string;
+  startLine: number; // 1-indexed, inclusive
+  endLine: number;   // 1-indexed, inclusive
 }
 
-function findAllLines(codeLines: string[], pattern: RegExp | string): number[] {
+function getFunctionRanges(codeLines: string[]): FunctionRange[] {
+  const ranges: FunctionRange[] = [];
+
+  for (let i = 0; i < codeLines.length; i++) {
+    const line = codeLines[i];
+    const match = line.match(/^(\s*)def\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(/);
+    if (!match) continue;
+
+    const defIndent = match[1].length;
+    let end = i + 1;
+
+    for (let j = i + 1; j < codeLines.length; j++) {
+      const next = codeLines[j];
+      if (next.trim() === "") continue;
+      const nextIndent = next.length - next.trimStart().length;
+      if (nextIndent <= defIndent) break;
+      end = j + 1;
+    }
+
+    ranges.push({
+      name: match[2],
+      startLine: i + 1,
+      endLine: end,
+    });
+  }
+
+  return ranges;
+}
+
+function getConsensusTaskNames(code: string): Set<string> {
+  const names = new Set<string>();
+
+  const eqPattern = /gl\.eq_principle\.\w+\s*\(\s*([A-Za-z_][A-Za-z0-9_]*)/g;
+  let match: RegExpExecArray | null;
+  while ((match = eqPattern.exec(code)) !== null) {
+    names.add(match[1]);
+  }
+
+  const runPattern = /gl\.vm\.run_nondet\s*\(\s*([A-Za-z_][A-Za-z0-9_]*)(?:\s*,\s*([A-Za-z_][A-Za-z0-9_]*))?/g;
+  while ((match = runPattern.exec(code)) !== null) {
+    names.add(match[1]);
+    if (match[2]) names.add(match[2]);
+  }
+
+  return names;
+}
+
+function getConsensusFunctionRanges(codeLines: string[]): FunctionRange[] {
+  const code = codeLines.join("\n");
+  const taskNames = getConsensusTaskNames(code);
+  if (taskNames.size === 0) return [];
+
+  return getFunctionRanges(codeLines).filter((r) => taskNames.has(r.name));
+}
+
+function isLineInsideRanges(line: number, ranges: FunctionRange[]): boolean {
+  return ranges.some((r) => line >= r.startLine && line <= r.endLine);
+}
+
+
+function findAllMatchingLines(codeLines: string[], pattern: RegExp): number[] {
   const result: number[] = [];
   for (let i = 0; i < codeLines.length; i++) {
-    if (typeof pattern === "string" ? codeLines[i].includes(pattern) : pattern.test(codeLines[i])) {
-      result.push(i + 1);
-    }
+    if (pattern.test(codeLines[i])) result.push(i + 1);
   }
   return result;
 }
 
-// Valid GenVM storage types
-const VALID_STORAGE_TYPES = new Set([
-  "str", "bool", "u256", "u160", "u128", "u64", "u32", "u16", "u8",
-  "i256", "i128", "i64", "i32", "i16", "i8", "bigint",
-  "Address", "DynArray", "TreeMap", "Array", "VecDB",
-]);
+// ---------------------------------------------------------------------------
+// Safety Rules — mirrors safety.py in official genvm-linter
+// ---------------------------------------------------------------------------
 
-// Python built-in types that are NOT valid for GenVM storage
-const INVALID_STORAGE_TYPES: Record<string, string> = {
-  "list": "DynArray",
-  "dict": "TreeMap",
-  "int": "bigint",
-  "float": "# float not recommended in deterministic context",
-  "List": "DynArray",
-  "Dict": "TreeMap",
-};
-
-// Deprecated v0.1.0 APIs → v0.1.3 replacements
-const DEPRECATED_APIS: Array<{ old: string; new: string; regex: RegExp }> = [
-  { old: "gl.get_webpage", new: "gl.nondet.web.render", regex: /gl\.get_webpage\s*\(/ },
-  { old: "gl.exec_prompt", new: "gl.nondet.exec_prompt", regex: /(?<!nondet\.)gl\.exec_prompt\s*\(/ },
-  { old: "gl.ContractAt", new: "gl.get_contract_at", regex: /gl\.ContractAt\s*\(/ },
-  { old: "@gl.eth_contract", new: "@gl.evm.contract_interface", regex: /@gl\.eth_contract/ },
-  { old: "gl.eq_principle_strict_eq", new: "gl.eq_principle.strict_eq", regex: /gl\.eq_principle_strict_eq\s*\(/ },
-  { old: "gl.eq_principle_prompt_comparative", new: "gl.eq_principle.prompt_comparative", regex: /gl\.eq_principle_prompt_comparative\s*\(/ },
-  { old: "Rollback", new: "gl.vm.UserError", regex: /\bRollback\b/ },
-  { old: "gl.advanced.rollback_immediate", new: "gl.advanced.user_error_immediate", regex: /gl\.advanced\.rollback_immediate\s*\(/ },
+// Forbidden stdlib modules that introduce non-determinism / side effects
+const FORBIDDEN_MODULES: readonly string[] = [
+  "random", "os", "sys", "subprocess", "threading", "asyncio",
+  "socket", "http", "requests", "pickle", "sqlite3", "hashlib",
+  "time", "datetime", "uuid", "pathlib", "shutil", "tempfile",
+  "io", "glob", "fnmatch", "logging", "warnings", "traceback",
 ];
 
+// Forbidden function calls
+const FORBIDDEN_CALLS: Array<{ pattern: RegExp; label: string }> = [
+  { pattern: /\btime\.time\s*\(/, label: "time.time()" },
+  { pattern: /\btime\.localtime\s*\(/, label: "time.localtime()" },
+  { pattern: /\buuid\.uuid1\s*\(/, label: "uuid.uuid1()" },
+  { pattern: /\buuid\.uuid4\s*\(/, label: "uuid.uuid4()" },
+  { pattern: /\bfloat\s*\(/, label: "float()" },
+  { pattern: /\bopen\s*\(/, label: "open()" },
+  { pattern: /\bprint\s*\(/, label: "print()" },
+];
+
+function ruleForbiddenImports(codeLines: string[]): LintDiagnostic[] {
+  const diags: LintDiagnostic[] = [];
+  for (let i = 0; i < codeLines.length; i++) {
+    const line = codeLines[i];
+    if (line.trim().startsWith("#")) continue;
+    for (const mod of FORBIDDEN_MODULES) {
+      const importPatterns = [
+        new RegExp(`^\\s*import\\s+${mod}\\b`),
+        new RegExp(`^\\s*from\\s+${mod}\\b`),
+      ];
+      for (const pattern of importPatterns) {
+        if (pattern.test(line)) {
+          diags.push({
+            line: i + 1,
+            startCol: 1,
+            endCol: line.length + 1,
+            severity: "error",
+            message: `Forbidden import: \`${mod}\` is not allowed in GenVM contracts (introduces non-determinism or unsafe side effects).`,
+            ruleId: "forbidden-import",
+            quickFix: {
+              label: `Remove forbidden import \`${mod}\``,
+              replacement: `# REMOVED: ${line.trim()} (forbidden in GenVM)`,
+              replaceRange: { startLine: i + 1, endLine: i + 1 },
+            },
+          });
+        }
+      }
+    }
+  }
+  return diags;
+}
+
+function ruleForbiddenCalls(codeLines: string[]): LintDiagnostic[] {
+  const diags: LintDiagnostic[] = [];
+  for (let i = 0; i < codeLines.length; i++) {
+    const line = codeLines[i];
+    if (line.trim().startsWith("#")) continue;
+    for (const { pattern, label } of FORBIDDEN_CALLS) {
+      if (pattern.test(line)) {
+        diags.push({
+          line: i + 1,
+          startCol: 1,
+          endCol: line.length + 1,
+          severity: "error",
+          message: `Forbidden call: \`${label}\` is not deterministic and may break GenVM consensus.`,
+          ruleId: "forbidden-call",
+        });
+      }
+    }
+  }
+  return diags;
+}
+
+// E023: .emit() forbidden in non-deterministic blocks
+// E024: inter-contract calls forbidden in nondet blocks
+// E025: nested run_nondet
+// E026: storage writes forbidden in nondet blocks
+function ruleNondetSafety(codeLines: string[]): LintDiagnostic[] {
+  const diags: LintDiagnostic[] = [];
+  const consensusRanges = getConsensusFunctionRanges(codeLines);
+  if (consensusRanges.length === 0) return diags;
+
+  for (const range of consensusRanges) {
+    for (let lineNo = range.startLine; lineNo <= range.endLine; lineNo++) {
+      const line = codeLines[lineNo - 1];
+      if (!line || line.trim().startsWith("#")) continue;
+
+      // E023: .emit() forbidden
+      if (/\.emit\s*\(/.test(line)) {
+        diags.push({
+          line: lineNo,
+          startCol: 1,
+          endCol: line.length + 1,
+          severity: "error",
+          message: "[E023] `.emit()` is forbidden inside non-deterministic blocks (run_nondet / eq_principle).",
+          ruleId: "E023",
+        });
+      }
+      // E024: inter-contract calls forbidden
+      if (/gl\.get_contract_at\s*\(/.test(line)) {
+        diags.push({
+          line: lineNo,
+          startCol: 1,
+          endCol: line.length + 1,
+          severity: "error",
+          message: "[E024] Inter-contract calls (`gl.get_contract_at`) are forbidden inside non-deterministic blocks.",
+          ruleId: "E024",
+        });
+      }
+      // E026: storage writes forbidden
+      if (/self\.\w+\s*=/.test(line) && !/^\s*#/.test(line)) {
+        diags.push({
+          line: lineNo,
+          startCol: 1,
+          endCol: line.length + 1,
+          severity: "error",
+          message: "[E026] Storage write (`self.x = ...`) is forbidden inside non-deterministic blocks.",
+          ruleId: "E026",
+        });
+      }
+    }
+  }
+  return diags;
+}
+
 // ---------------------------------------------------------------------------
-// Rule implementations
+// Structure Rules — mirrors structure.py in official genvm-linter
 // ---------------------------------------------------------------------------
 
-function ruleMissingImport(codeLines: string[]): LintDiagnostic | null {
-  const hasImport = codeLines.some(
-    (l) => l.includes("from genlayer import") || l.includes("import genlayer")
+// W010/W011: Contract must start with dependency header
+function ruleDependencyHeader(codeLines: string[]): LintDiagnostic | null {
+  // Look for header in first 3 lines
+  const header = codeLines.slice(0, 3).find(
+    (l) => /^\s*#\s*\{/.test(l) && (l.includes("py-genlayer") || l.includes("Depends") || l.includes("Seq"))
   );
-  if (!hasImport) {
+  if (!header) {
+    return {
+      line: 1,
+      startCol: 1,
+      endCol: 1,
+      severity: "warning",
+      message: '[W010] Missing dependency header. GenVM contracts should start with `# { "Depends": "py-genlayer:test" }`.',
+      ruleId: "W010",
+      quickFix: {
+        label: 'Add dependency header `# { "Depends": "py-genlayer:test" }`',
+        replacement: '# { "Depends": "py-genlayer:test" }\n',
+        insertBefore: true,
+      },
+    };
+  }
+  return null;
+}
+
+// Missing `from genlayer import *` (not in official but critical)
+function ruleMissingImport(codeLines: string[]): LintDiagnostic | null {
+  const has = codeLines.some((l) => /from genlayer import/.test(l) || /import genlayer/.test(l));
+  if (!has) {
     return {
       line: 1,
       startCol: 1,
       endCol: 1,
       severity: "error",
-      message: "Missing GenLayer import. Add `from genlayer import *`.",
+      message: "Missing GenLayer import. Add `from genlayer import *` to access GenVM APIs.",
       ruleId: "missing-import",
       quickFix: {
         label: "Add `from genlayer import *`",
@@ -114,102 +294,135 @@ function ruleMissingImport(codeLines: string[]): LintDiagnostic | null {
   return null;
 }
 
-function ruleMissingContractClass(codeLines: string[]): LintDiagnostic | null {
-  const hasContract = codeLines.some((l) => /class\s+\w+\s*\(\s*gl\.Contract\s*\)/.test(l));
-  if (!hasContract) {
-    const lastLine = codeLines.length;
+// E011: Only one gl.Contract subclass per module
+function ruleE011(codeLines: string[]): LintDiagnostic | null {
+  const lines = findAllMatchingLines(codeLines, /class\s+\w+\s*\(\s*gl\.Contract\s*\)/);
+  if (lines.length > 1) {
     return {
-      line: lastLine,
+      line: lines[1],
       startCol: 1,
-      endCol: 1,
+      endCol: codeLines[lines[1] - 1].length + 1,
       severity: "error",
-      message: "No class inheriting `gl.Contract` found. GenVM requires exactly one Contract class.",
-      ruleId: "missing-contract-class",
-      quickFix: {
-        label: "Add Contract class stub",
-        replacement: "\n\nclass MyContract(gl.Contract):\n    def __init__(self):\n        pass\n",
-        insertBefore: false,
-      },
+      message: "[E011] Only one `gl.Contract` subclass is allowed per module. GenVM cannot determine which class to deploy.",
+      ruleId: "E011",
     };
   }
   return null;
 }
 
-function ruleMultipleContracts(codeLines: string[]): LintDiagnostic | null {
-  const contractLines = findAllLines(codeLines, /class\s+\w+\s*\(\s*gl\.Contract\s*\)/);
-  if (contractLines.length > 1) {
-    return {
-      line: contractLines[1],
-      startCol: 1,
-      endCol: codeLines[contractLines[1] - 1].length + 1,
-      severity: "error",
-      message: "Multiple Contract classes found. GenVM allows only one `gl.Contract` subclass per module.",
-      ruleId: "multiple-contracts",
-    };
-  }
-  return null;
-}
-
-function ruleMissingInit(codeLines: string[]): LintDiagnostic | null {
-  const hasContract = codeLines.some((l) => /class\s+\w+\s*\(\s*gl\.Contract\s*\)/.test(l));
-  if (!hasContract) return null;
-
-  const hasInit = codeLines.some((l) => /def\s+__init__\s*\(/.test(l));
-  if (!hasInit) {
-    const contractLine = findLine(codeLines, /class\s+\w+\s*\(\s*gl\.Contract\s*\)/);
-    return {
-      line: contractLine,
-      startCol: 1,
-      endCol: codeLines[contractLine - 1].length + 1,
-      severity: "warning",
-      message: "Contract class is missing `__init__` method. Add a constructor to initialize storage fields.",
-      ruleId: "missing-init",
-      quickFix: {
-        label: "Add __init__ method",
-        replacement: codeLines[contractLine - 1] + "\n    def __init__(self):\n        pass\n",
-        replaceRange: { startLine: contractLine, endLine: contractLine },
-      },
-    };
-  }
-  return null;
-}
-
-function ruleInvalidStorageType(codeLines: string[]): LintDiagnostic[] {
+// E012: __init__ must NOT have @gl.public.write / @gl.public.view
+function ruleE012(codeLines: string[]): LintDiagnostic[] {
   const diags: LintDiagnostic[] = [];
-  // Match field declarations like "    field_name: type"
-  const fieldPattern = /^(\s{4}\w+)\s*:\s*(\w+)/;
+  for (let i = 0; i < codeLines.length; i++) {
+    if (/def\s+__init__\s*\(/.test(codeLines[i])) {
+      const prevLine = i > 0 ? codeLines[i - 1].trim() : "";
+      if (prevLine.startsWith("@gl.public")) {
+        diags.push({
+          line: i,
+          startCol: 1,
+          endCol: codeLines[i - 1].length + 1,
+          severity: "error",
+          message: "[E012] `__init__` must not have `@gl.public.write` or `@gl.public.view` decorator. Constructors are private.",
+          ruleId: "E012",
+          quickFix: {
+            label: "Remove public decorator from __init__",
+            replacement: "",
+            replaceRange: { startLine: i, endLine: i },
+          },
+        });
+      }
+    }
+  }
+  return diags;
+}
 
-  // Only check inside contract class (between class line and first def)
-  let inClass = false;
+// E013: Public methods cannot start with __
+function ruleE013(codeLines: string[]): LintDiagnostic[] {
+  const diags: LintDiagnostic[] = [];
+  for (let i = 0; i < codeLines.length; i++) {
+    const line = codeLines[i];
+    if (/^\s{4}def\s+__(?!init__)\w+\s*\(/.test(line)) {
+      const prevLine = i > 0 ? codeLines[i - 1].trim() : "";
+      if (prevLine.startsWith("@gl.public")) {
+        diags.push({
+          line: i + 1,
+          startCol: 1,
+          endCol: line.length + 1,
+          severity: "error",
+          message: "[E013] Public methods cannot start with `__`. Rename the method or remove the `@gl.public` decorator.",
+          ruleId: "E013",
+        });
+      }
+    }
+  }
+  return diags;
+}
+
+// E015/E016: Raw int/list/dict in storage fields
+const INVALID_STORAGE_MAP: Record<string, { replacement: string; code: string }> = {
+  "list": { replacement: "DynArray[str]", code: "E016" },
+  "List": { replacement: "DynArray[str]", code: "E016" },
+  "dict": { replacement: "TreeMap[str, str]", code: "E016" },
+  "Dict": { replacement: "TreeMap[str, str]", code: "E016" },
+  "int":  { replacement: "u256 (or i256 for signed)", code: "E015" },
+  "float": { replacement: "# float is non-deterministic in GenVM", code: "E015" },
+};
+
+function ruleE015_E016(codeLines: string[]): LintDiagnostic[] {
+  const diags: LintDiagnostic[] = [];
+  let inContractClass = false;
   let inMethod = false;
 
   for (let i = 0; i < codeLines.length; i++) {
     const line = codeLines[i];
+    const trimmed = line.trim();
+    const indent = line.length - line.trimStart().length;
+
     if (/class\s+\w+\s*\(\s*gl\.Contract\s*\)/.test(line)) {
-      inClass = true;
+      inContractClass = true;
       inMethod = false;
       continue;
     }
-    if (inClass && /^\s{4}def\s+/.test(line)) {
-      inMethod = true;
+
+    if (!inContractClass) continue;
+    if (trimmed === "") continue;
+
+    // Left the contract class at module scope
+    if (indent === 0) {
+      inContractClass = false;
+      inMethod = false;
+      continue;
     }
-    if (inClass && !inMethod) {
-      const match = line.match(fieldPattern);
+
+    // Entering a method body
+    if (indent === 4 && /^def\s+/.test(trimmed)) {
+      inMethod = true;
+      continue;
+    }
+
+    // Returned to class-level statement (field/decorator/comment) after being in method
+    if (indent === 4 && !/^def\s+/.test(trimmed)) {
+      inMethod = false;
+    }
+
+    if (inContractClass && !inMethod) {
+      // Match field: "    fieldname: TYPE" or "    fieldname: TYPE[...]"
+      const match = line.match(/^\s{4}(\w+)\s*:\s*(\w+)/);
       if (match) {
         const rawType = match[2];
-        const replacement = INVALID_STORAGE_TYPES[rawType];
-        if (replacement) {
+        const invalid = INVALID_STORAGE_MAP[rawType];
+        if (invalid) {
           const col = line.indexOf(rawType) + 1;
           diags.push({
             line: i + 1,
             startCol: col,
             endCol: col + rawType.length,
             severity: "error",
-            message: `\`${rawType}\` is not a valid GenVM storage type. Use \`${replacement}\` instead.`,
-            ruleId: "invalid-storage-type",
+            message: `[${invalid.code}] \`${rawType}\` is not a valid GenVM storage type. Use \`${invalid.replacement}\` instead.`,
+            ruleId: invalid.code,
             quickFix: {
-              label: `Replace \`${rawType}\` with \`${replacement}\``,
-              replacement: line.replace(rawType, replacement),
+              label: `Replace \`${rawType}\` with \`${invalid.replacement}\``,
+              replacement: line.replace(new RegExp(`\\b${rawType}\\b`), invalid.replacement),
               replaceRange: { startLine: i + 1, endLine: i + 1 },
             },
           });
@@ -220,80 +433,25 @@ function ruleInvalidStorageType(codeLines: string[]): LintDiagnostic[] {
   return diags;
 }
 
-function ruleUninitializedField(codeLines: string[]): LintDiagnostic[] {
+// E019: __receive__ and __on_bridge__ must have @gl.public.write
+function ruleE019(codeLines: string[]): LintDiagnostic[] {
   const diags: LintDiagnostic[] = [];
-  const fieldPattern = /^\s{4}(\w+)\s*:\s*\w+/;
-  const fields: Array<{ name: string; line: number }> = [];
-
-  // Collect field declarations (class body, before first def)
-  let inClass = false;
-  let inMethod = false;
   for (let i = 0; i < codeLines.length; i++) {
-    const line = codeLines[i];
-    if (/class\s+\w+\s*\(\s*gl\.Contract\s*\)/.test(line)) {
-      inClass = true;
-      inMethod = false;
-      continue;
-    }
-    if (inClass && /^\s{4}def\s+/.test(line)) {
-      inMethod = true;
-    }
-    if (inClass && !inMethod) {
-      const match = line.match(fieldPattern);
-      if (match) fields.push({ name: match[1], line: i + 1 });
-    }
-  }
-
-  // Check if each field is initialized in __init__
-  const initBody = codeLines.join("\n").match(/def __init__\([^)]*\):[^]*?(?=\n    def |\n[^\s]|$)/);
-  const initText = initBody ? initBody[0] : "";
-
-  for (const field of fields) {
-    if (!initText.includes(`self.${field.name}`)) {
-      diags.push({
-        line: field.line,
-        startCol: 1,
-        endCol: codeLines[field.line - 1].length + 1,
-        severity: "warning",
-        message: `Storage field \`${field.name}\` is declared but not initialized in \`__init__\`.`,
-        ruleId: "uninitialized-field",
-      });
-    }
-  }
-  return diags;
-}
-
-function ruleMissingDecorator(codeLines: string[]): LintDiagnostic[] {
-  const diags: LintDiagnostic[] = [];
-  let inContract = false;
-
-  for (let i = 0; i < codeLines.length; i++) {
-    const line = codeLines[i];
-    if (/class\s+\w+\s*\(\s*gl\.Contract\s*\)/.test(line)) {
-      inContract = true;
-      continue;
-    }
-    // New top-level class/function ends contract scope
-    if (inContract && /^class\s|^def\s/.test(line)) {
-      inContract = false;
-      continue;
-    }
-    if (inContract && /^\s{4}def\s+(?!__init__|_)(\w+)\s*\(self/.test(line)) {
-      // Check previous line for decorator
+    if (/def\s+(__receive__|__on_bridge__)\s*\(/.test(codeLines[i])) {
       const prevLine = i > 0 ? codeLines[i - 1].trim() : "";
-      if (!prevLine.startsWith("@gl.public") && !prevLine.startsWith("@")) {
-        const methodMatch = line.match(/def\s+(\w+)/);
-        const methodName = methodMatch ? methodMatch[1] : "method";
+      if (!prevLine.includes("@gl.public.write")) {
+        const methodMatch = codeLines[i].match(/def\s+(\w+)/);
+        const name = methodMatch ? methodMatch[1] : "method";
         diags.push({
           line: i + 1,
           startCol: 1,
-          endCol: line.length + 1,
-          severity: "warning",
-          message: `Method \`${methodName}\` is missing \`@gl.public.write\` or \`@gl.public.view\` decorator.`,
-          ruleId: "missing-decorator",
+          endCol: codeLines[i].length + 1,
+          severity: "error",
+          message: `[E019] \`${name}\` requires \`@gl.public.write\` decorator.`,
+          ruleId: "E019",
           quickFix: {
-            label: `Add @gl.public.write decorator`,
-            replacement: "    @gl.public.write\n" + line,
+            label: "Add @gl.public.write decorator",
+            replacement: "    @gl.public.write\n" + codeLines[i],
             replaceRange: { startLine: i + 1, endLine: i + 1 },
           },
         });
@@ -303,113 +461,23 @@ function ruleMissingDecorator(codeLines: string[]): LintDiagnostic[] {
   return diags;
 }
 
-function ruleWrongDecorator(codeLines: string[]): LintDiagnostic[] {
+// W020: View methods should have return type annotation
+function ruleW020(codeLines: string[]): LintDiagnostic[] {
   const diags: LintDiagnostic[] = [];
-
-  for (let i = 0; i < codeLines.length; i++) {
-    if (codeLines[i].trim() === "@gl.public.view") {
-      // Scan method body for state mutations (self.xxx = ...)
-      const methodStart = i + 1;
-      if (methodStart < codeLines.length) {
-        // Find method body extent
-        let bodyEnd = methodStart + 1;
-        while (bodyEnd < codeLines.length && (codeLines[bodyEnd].startsWith("        ") || codeLines[bodyEnd].trim() === "")) {
-          bodyEnd++;
-        }
-        const body = codeLines.slice(methodStart, bodyEnd).join("\n");
-        if (/self\.\w+\s*=/.test(body) || /self\.\w+\s*\+=/.test(body) || body.includes(".append(")) {
-          diags.push({
-            line: i + 1,
-            startCol: 1,
-            endCol: codeLines[i].length + 1,
-            severity: "warning",
-            message: "`@gl.public.view` method modifies state. Should use `@gl.public.write` instead.",
-            ruleId: "wrong-decorator",
-            quickFix: {
-              label: "Change to @gl.public.write",
-              replacement: codeLines[i].replace("@gl.public.view", "@gl.public.write"),
-              replaceRange: { startLine: i + 1, endLine: i + 1 },
-            },
-          });
-        }
-      }
-    }
-  }
-  return diags;
-}
-
-function ruleDeprecatedAPI(codeLines: string[]): LintDiagnostic[] {
-  const diags: LintDiagnostic[] = [];
-
   for (let i = 0; i < codeLines.length; i++) {
     const line = codeLines[i];
-    // Skip comments
-    if (line.trim().startsWith("#")) continue;
-
-    for (const api of DEPRECATED_APIS) {
-      if (api.regex.test(line)) {
-        const col = line.indexOf(api.old) + 1;
-        diags.push({
-          line: i + 1,
-          startCol: col > 0 ? col : 1,
-          endCol: col > 0 ? col + api.old.length : line.length + 1,
-          severity: "warning",
-          message: `\`${api.old}\` is deprecated (v0.1.0). Use \`${api.new}\` instead.`,
-          ruleId: "deprecated-api",
-          quickFix: {
-            label: `Replace with \`${api.new}\``,
-            replacement: line.replace(api.old, api.new),
-            replaceRange: { startLine: i + 1, endLine: i + 1 },
-          },
-        });
-      }
-    }
-  }
-  return diags;
-}
-
-function ruleRawNondet(codeLines: string[]): LintDiagnostic[] {
-  const diags: LintDiagnostic[] = [];
-  const code = codeLines.join("\n");
-  const hasEqPrinciple = code.includes("gl.eq_principle");
-
-  if (hasEqPrinciple) return diags; // Has consensus, fine
-
-  for (let i = 0; i < codeLines.length; i++) {
-    const line = codeLines[i];
-    if (line.trim().startsWith("#")) continue;
-    if (/gl\.nondet\.\w+/.test(line)) {
-      diags.push({
-        line: i + 1,
-        startCol: 1,
-        endCol: line.length + 1,
-        severity: "warning",
-        message: "Non-deterministic call without `gl.eq_principle` consensus. Results may not reach consensus.",
-        ruleId: "raw-nondet",
-      });
-    }
-  }
-  return diags;
-}
-
-function ruleMissingReturnType(codeLines: string[]): LintDiagnostic[] {
-  const diags: LintDiagnostic[] = [];
-
-  for (let i = 0; i < codeLines.length; i++) {
-    const line = codeLines[i];
-    // Match public methods (decorated)
     if (/^\s{4}def\s+(?!__init__|_)\w+\s*\(self/.test(line) && !line.includes("->")) {
       const prevLine = i > 0 ? codeLines[i - 1].trim() : "";
-      if (prevLine.startsWith("@gl.public")) {
+      if (prevLine === "@gl.public.view") {
         const methodMatch = line.match(/def\s+(\w+)/);
-        const methodName = methodMatch ? methodMatch[1] : "method";
+        const name = methodMatch ? methodMatch[1] : "method";
         diags.push({
           line: i + 1,
           startCol: 1,
           endCol: line.length + 1,
           severity: "warning",
-          message: `Method \`${methodName}\` is missing return type annotation. Add \`-> str\` or appropriate type.`,
-          ruleId: "missing-return-type",
+          message: `[W020] View method \`${name}\` should have a return type annotation for ABI schema generation.`,
+          ruleId: "W020",
           quickFix: {
             label: "Add `-> str` return type",
             replacement: line.replace("):", ") -> str:"),
@@ -422,22 +490,135 @@ function ruleMissingReturnType(codeLines: string[]): LintDiagnostic[] {
   return diags;
 }
 
-function ruleInvalidErrorClass(codeLines: string[]): LintDiagnostic[] {
+// E021: Public methods cannot use *args or **kwargs
+function ruleE021(codeLines: string[]): LintDiagnostic[] {
   const diags: LintDiagnostic[] = [];
+  for (let i = 0; i < codeLines.length; i++) {
+    const line = codeLines[i];
+    if (/^\s{4}def\s+\w+\s*\(self/.test(line)) {
+      const prevLine = i > 0 ? codeLines[i - 1].trim() : "";
+      if (prevLine.startsWith("@gl.public")) {
+        if (/\*args|\*\*kwargs/.test(line)) {
+          diags.push({
+            line: i + 1,
+            startCol: 1,
+            endCol: line.length + 1,
+            severity: "error",
+            message: "[E021] Public methods cannot use `*args` or `**kwargs`. GenVM ABI requires explicit parameter types.",
+            ruleId: "E021",
+          });
+        }
+      }
+    }
+  }
+  return diags;
+}
+
+// E022: Every method must have self as first parameter
+function ruleE022(codeLines: string[]): LintDiagnostic[] {
+  const diags: LintDiagnostic[] = [];
+  let inContractClass = false;
+  for (let i = 0; i < codeLines.length; i++) {
+    const line = codeLines[i];
+    if (/class\s+\w+\s*\(\s*gl\.Contract\s*\)/.test(line)) { inContractClass = true; continue; }
+    if (inContractClass && /^[^\s]/.test(line)) inContractClass = false;
+    if (inContractClass && /^\s{4}def\s+\w+\s*\(/.test(line) && !/\(self/.test(line)) {
+      const methodMatch = line.match(/def\s+(\w+)/);
+      const name = methodMatch ? methodMatch[1] : "method";
+      diags.push({
+        line: i + 1,
+        startCol: 1,
+        endCol: line.length + 1,
+        severity: "error",
+        message: `[E022] Method \`${name}\` must have \`self\` as its first parameter.`,
+        ruleId: "E022",
+        quickFix: {
+          label: "Add self parameter",
+          replacement: line.replace(`def ${name}(`, `def ${name}(self, `).replace("(self, )", "(self)"),
+          replaceRange: { startLine: i + 1, endLine: i + 1 },
+        },
+      });
+    }
+  }
+  return diags;
+}
+
+// Deprecated API checks (v0.1.0 → v0.1.3 migration)
+const DEPRECATED_APIS: Array<{ deprecated: string; replacement: string; pattern: RegExp }> = [
+  { deprecated: "gl.get_webpage", replacement: "gl.nondet.web.render", pattern: /gl\.get_webpage\s*\(/ },
+  { deprecated: "gl.exec_prompt", replacement: "gl.nondet.exec_prompt", pattern: /(?<!nondet\.)(?<![a-z_])gl\.exec_prompt\s*\(/ },
+  { deprecated: "gl.ContractAt", replacement: "gl.get_contract_at", pattern: /gl\.ContractAt\s*\(/ },
+  { deprecated: "@gl.eth_contract", replacement: "@gl.evm.contract_interface", pattern: /@gl\.eth_contract/ },
+  { deprecated: "gl.eq_principle_strict_eq", replacement: "gl.eq_principle.strict_eq", pattern: /gl\.eq_principle_strict_eq\s*\(/ },
+  { deprecated: "gl.eq_principle_prompt_comparative", replacement: "gl.eq_principle.prompt_comparative", pattern: /gl\.eq_principle_prompt_comparative\s*\(/ },
+  { deprecated: "gl.advanced.rollback_immediate", replacement: "gl.advanced.user_error_immediate", pattern: /gl\.advanced\.rollback_immediate\s*\(/ },
+  { deprecated: "from genlayer import Rollback", replacement: "gl.vm.UserError", pattern: /from genlayer import.*Rollback/ },
+];
+
+function ruleDeprecatedAPIs(codeLines: string[]): LintDiagnostic[] {
+  const diags: LintDiagnostic[] = [];
+  for (let i = 0; i < codeLines.length; i++) {
+    const line = codeLines[i];
+    if (line.trim().startsWith("#")) continue;
+    for (const api of DEPRECATED_APIS) {
+      if (api.pattern.test(line)) {
+        diags.push({
+          line: i + 1,
+          startCol: 1,
+          endCol: line.length + 1,
+          severity: "warning",
+          message: `\`${api.deprecated}\` is deprecated (v0.1.0 API). Use \`${api.replacement}\` instead.`,
+          ruleId: "deprecated-api",
+          quickFix: {
+            label: `Replace with \`${api.replacement}\``,
+            replacement: line.replace(api.deprecated, api.replacement),
+            replaceRange: { startLine: i + 1, endLine: i + 1 },
+          },
+        });
+      }
+    }
+  }
+  return diags;
+}
+
+// Non-deterministic call without eq_principle (warning)
+function ruleRawNondet(codeLines: string[]): LintDiagnostic[] {
+  const diags: LintDiagnostic[] = [];
+  const consensusRanges = getConsensusFunctionRanges(codeLines);
 
   for (let i = 0; i < codeLines.length; i++) {
     const line = codeLines[i];
     if (line.trim().startsWith("#")) continue;
-    // Match raise Exception/ValueError/RuntimeError etc. but not UserError
-    const match = line.match(/raise\s+(Exception|ValueError|RuntimeError|TypeError)\s*\(/);
+    // Direct nondet call outside any consensus wrapper
+    if (/gl\.nondet\.\w+/.test(line) && !isLineInsideRanges(i + 1, consensusRanges)) {
+      diags.push({
+        line: i + 1,
+        startCol: 1,
+        endCol: line.length + 1,
+        severity: "warning",
+        message: "Non-deterministic call (`gl.nondet.*`) without `gl.eq_principle` consensus wrapper. Validators may not reach consensus.",
+        ruleId: "raw-nondet",
+      });
+    }
+  }
+  return diags;
+}
+
+// gl.vm.UserError check — prefer over bare exceptions
+function ruleInvalidErrorClass(codeLines: string[]): LintDiagnostic[] {
+  const diags: LintDiagnostic[] = [];
+  for (let i = 0; i < codeLines.length; i++) {
+    const line = codeLines[i];
+    if (line.trim().startsWith("#")) continue;
+    const match = line.match(/raise\s+(Exception|ValueError|RuntimeError|TypeError|AssertionError)\s*\(/);
     if (match) {
       diags.push({
         line: i + 1,
         startCol: line.indexOf("raise") + 1,
         endCol: line.length + 1,
         severity: "warning",
-        message: `Use \`gl.vm.UserError\` instead of \`${match[1]}\` for GenVM-compatible error handling.`,
-        ruleId: "invalid-error-class",
+        message: `Prefer \`gl.vm.UserError\` over \`${match[1]}\` for GenVM-compatible error handling and deterministic rollback.`,
+        ruleId: "prefer-user-error",
         quickFix: {
           label: "Replace with gl.vm.UserError",
           replacement: line.replace(match[1], "gl.vm.UserError"),
@@ -449,100 +630,41 @@ function ruleInvalidErrorClass(codeLines: string[]): LintDiagnostic[] {
   return diags;
 }
 
-function ruleFloatInDeterministic(codeLines: string[]): LintDiagnostic[] {
-  const diags: LintDiagnostic[] = [];
-
-  for (let i = 0; i < codeLines.length; i++) {
-    const line = codeLines[i];
-    if (line.trim().startsWith("#")) continue;
-    // Match float type annotations or casts (not inside strings)
-    if (/:\s*float\b/.test(line) || /\bfloat\s*\(/.test(line)) {
-      diags.push({
-        line: i + 1,
-        startCol: 1,
-        endCol: line.length + 1,
-        severity: "info",
-        message: "GenVM uses software float in deterministic mode — significant performance overhead. Consider using integer math.",
-        ruleId: "float-in-deterministic",
-      });
-    }
-  }
-  return diags;
-}
-
-function ruleEmptyMethodBody(codeLines: string[]): LintDiagnostic[] {
-  const diags: LintDiagnostic[] = [];
-
-  for (let i = 0; i < codeLines.length; i++) {
-    const line = codeLines[i];
-    if (/^\s{4}def\s+(?!__init__|_)\w+/.test(line)) {
-      // Check if next non-empty line is just "pass" or docstring + pass
-      let bodyStart = i + 1;
-      // Skip docstring
-      if (bodyStart < codeLines.length && codeLines[bodyStart].trim().startsWith('"""')) {
-        bodyStart++;
-        while (bodyStart < codeLines.length && !codeLines[bodyStart].trim().endsWith('"""')) {
-          bodyStart++;
-        }
-        bodyStart++;
-      }
-      if (bodyStart < codeLines.length && codeLines[bodyStart].trim() === "pass") {
-        // Check that pass is the only statement
-        const nextLine = bodyStart + 1;
-        if (nextLine >= codeLines.length || /^\s{0,4}\S/.test(codeLines[nextLine]) || codeLines[nextLine].trim() === "") {
-          diags.push({
-            line: bodyStart + 1,
-            startCol: 1,
-            endCol: codeLines[bodyStart].length + 1,
-            severity: "warning",
-            message: "Method body is empty (`pass` only). Add implementation logic.",
-            ruleId: "empty-method-body",
-          });
-        }
-      }
-    }
-  }
-  return diags;
-}
-
 // ---------------------------------------------------------------------------
-// Main linter function
+// Main entry point
 // ---------------------------------------------------------------------------
 
 export function lintGenVMCode(code: string): LintDiagnostic[] {
   if (!code.trim()) return [];
-
-  const codeLines = lines(code);
+  const codeLines = getLines(code);
   const diagnostics: LintDiagnostic[] = [];
 
-  // Category 1: Contract Structure
-  const missingImport = ruleMissingImport(codeLines);
-  if (missingImport) diagnostics.push(missingImport);
+  // Layer 1 — Safety (fast)
+  const header = ruleDependencyHeader(codeLines);
+  if (header) diagnostics.push(header);
 
-  const missingContract = ruleMissingContractClass(codeLines);
-  if (missingContract) diagnostics.push(missingContract);
+  const imp = ruleMissingImport(codeLines);
+  if (imp) diagnostics.push(imp);
 
-  const multipleContracts = ruleMultipleContracts(codeLines);
-  if (multipleContracts) diagnostics.push(multipleContracts);
-
-  const missingInit = ruleMissingInit(codeLines);
-  if (missingInit) diagnostics.push(missingInit);
-
-  // Category 2: Storage Types
-  diagnostics.push(...ruleInvalidStorageType(codeLines));
-  diagnostics.push(...ruleUninitializedField(codeLines));
-
-  // Category 3: Decorators
-  diagnostics.push(...ruleMissingDecorator(codeLines));
-  diagnostics.push(...ruleWrongDecorator(codeLines));
-
-  // Category 4: API Usage
-  diagnostics.push(...ruleDeprecatedAPI(codeLines));
+  diagnostics.push(...ruleForbiddenImports(codeLines));
+  diagnostics.push(...ruleForbiddenCalls(codeLines));
+  diagnostics.push(...ruleNondetSafety(codeLines));
+  diagnostics.push(...ruleDeprecatedAPIs(codeLines));
   diagnostics.push(...ruleRawNondet(codeLines));
-  diagnostics.push(...ruleMissingReturnType(codeLines));
-  diagnostics.push(...ruleInvalidErrorClass(codeLines));
-  diagnostics.push(...ruleFloatInDeterministic(codeLines));
-  diagnostics.push(...ruleEmptyMethodBody(codeLines));
 
-  return diagnostics;
+  // Layer 2 — Structure
+  const e011 = ruleE011(codeLines);
+  if (e011) diagnostics.push(e011);
+
+  diagnostics.push(...ruleE012(codeLines));
+  diagnostics.push(...ruleE013(codeLines));
+  diagnostics.push(...ruleE015_E016(codeLines));
+  diagnostics.push(...ruleE019(codeLines));
+  diagnostics.push(...ruleW020(codeLines));
+  diagnostics.push(...ruleE021(codeLines));
+  diagnostics.push(...ruleE022(codeLines));
+  diagnostics.push(...ruleInvalidErrorClass(codeLines));
+
+  // Sort by line number for clean display
+  return diagnostics.sort((a, b) => a.line - b.line || a.startCol - b.startCol);
 }

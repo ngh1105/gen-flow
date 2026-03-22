@@ -51,19 +51,23 @@ export default function MyContractsPanel({
       />
 
       {/* Panel */}
-      <div className="fixed top-0 right-0 z-[90] h-full w-[360px] bg-surface border-l border-border shadow-2xl shadow-black/40 flex flex-col">
+      <div
+        data-testid="my-contracts-panel"
+        className="fixed top-0 right-0 z-[90] h-full w-[360px] bg-surface border-l border-border shadow-none shadow-none flex flex-col"
+      >
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-border">
           <div className="flex items-center gap-2">
-            <FolderOpen className="w-4 h-4 text-accent-purple" />
-            <span className="text-sm font-semibold">My Contracts</span>
-            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-accent-purple/10 text-accent-purple font-mono">
+            <FolderOpen className="w-4 h-4 text-foreground" />
+            <span className="text-sm font-display font-medium">My Contracts</span>
+            <span className="text-[10px] px-1.5 py-0.5 rounded-none bg-foreground text-background hover:opacity-90 active:scale-[0.98] font-mono">
               {savedContracts.length}
             </span>
           </div>
           <button
             onClick={onClose}
-            className="p-1 rounded-md hover:bg-surface-hover text-muted hover:text-foreground transition-colors"
+            data-testid="close-contracts-panel"
+            className="p-1 rounded-none hover:bg-surface-hover text-muted hover:text-foreground transition-colors duration-150"
           >
             <X className="w-4 h-4" />
           </button>
@@ -78,19 +82,21 @@ export default function MyContractsPanel({
                 value={saveName}
                 onChange={(e) => setSaveName(e.target.value)}
                 placeholder="Contract name..."
-                className="flex-1 px-3 py-1.5 text-sm bg-background/60 border border-border rounded-lg text-foreground placeholder:text-muted/50 focus:outline-none focus:border-accent-purple/50"
+                data-testid="save-contract-name-input"
+                className="flex-1 px-3 py-1.5 text-sm bg-background border border-border rounded-none text-foreground placeholder:text-muted/50 focus:outline-none focus:border-foreground"
                 onKeyDown={(e) => e.key === "Enter" && handleSave()}
                 autoFocus
               />
               <button
                 onClick={handleSave}
-                className="px-3 py-1.5 rounded-lg text-xs font-medium bg-accent-purple/15 text-accent-purple hover:bg-accent-purple/25 border border-accent-purple/25 transition-all"
+                data-testid="confirm-save-contract"
+                className="px-3 py-1.5 rounded-none text-xs font-medium bg-foreground text-background hover:opacity-90 active:scale-[0.98] hover:bg-foreground border border-foreground transition-all duration-150"
               >
                 Save
               </button>
               <button
                 onClick={() => setShowSave(false)}
-                className="p-1.5 rounded-md text-muted hover:text-foreground hover:bg-surface-hover"
+                className="p-1.5 rounded-none text-muted hover:text-foreground hover:bg-surface-hover"
               >
                 <X className="w-3.5 h-3.5" />
               </button>
@@ -98,7 +104,8 @@ export default function MyContractsPanel({
           ) : (
             <button
               onClick={() => setShowSave(true)}
-              className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-xs font-medium bg-accent-purple/10 text-accent-purple hover:bg-accent-purple/20 border border-accent-purple/20 transition-all"
+              data-testid="save-current-contract"
+              className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-none text-xs font-medium bg-foreground text-background hover:opacity-90 active:scale-[0.98] hover:bg-foreground border border-foreground transition-all duration-150"
             >
               <Save className="w-3.5 h-3.5" />
               Save Current Contract
@@ -123,7 +130,8 @@ export default function MyContractsPanel({
               .map((contract) => (
                 <div
                   key={contract.id}
-                  className="flex items-center gap-3 px-3 py-2.5 rounded-lg border border-border hover:border-accent-purple/20 bg-background/40 hover:bg-surface-hover transition-all group"
+                  data-testid={`saved-contract-row-${contract.id}`}
+                  className="flex items-center gap-3 px-3 py-2.5 rounded-none border border-border hover:border-foreground bg-background hover:bg-surface-hover transition-all duration-150 group"
                 >
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium truncate">
@@ -134,17 +142,19 @@ export default function MyContractsPanel({
                       {new Date(contract.savedAt).toLocaleDateString()}
                     </p>
                   </div>
-                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all duration-150">
                     <button
                       onClick={() => handleLoad(contract.id)}
-                      className="p-1.5 rounded-md text-accent-blue hover:bg-accent-blue/10 transition-colors"
+                      data-testid={`load-contract-${contract.id}`}
+                      className="p-1.5 rounded-none text-foreground hover:bg-foreground transition-colors duration-150"
                       title="Load contract"
                     >
                       <Upload className="w-3.5 h-3.5" />
                     </button>
                     <button
                       onClick={() => deleteContract(contract.id)}
-                      className="p-1.5 rounded-md text-accent-red hover:bg-accent-red/10 transition-colors"
+                      data-testid={`delete-contract-${contract.id}`}
+                      className="p-1.5 rounded-none text-foreground hover:bg-foreground transition-colors duration-150"
                       title="Delete contract"
                     >
                       <Trash2 className="w-3.5 h-3.5" />

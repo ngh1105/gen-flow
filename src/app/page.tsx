@@ -35,56 +35,56 @@ const TEMPLATES = [
     name: "AI Arbitrator",
     description: "Fetch web data and use AI to analyze it with consensus validation.",
     icon: Scale,
-    color: "from-purple-500 to-blue-500",
+    color: "bg-surface border border-border",
     tag: "AI Analysis",
   },
   {
     name: "DAO Vote",
     description: "Create decentralized proposals with AI-evaluated voting.",
     icon: Vote,
-    color: "from-emerald-500 to-teal-500",
+    color: "bg-surface border border-border",
     tag: "Governance",
   },
   {
     name: "Price Oracle",
     description: "Fetch real-time price data with comparative consensus.",
     icon: TrendingUp,
-    color: "from-blue-500 to-cyan-500",
+    color: "bg-surface border border-border",
     tag: "DeFi",
   },
   {
     name: "Content Filter",
     description: "AI-powered content moderation with event emission.",
     icon: Shield,
-    color: "from-orange-500 to-red-500",
+    color: "bg-surface border border-border",
     tag: "Moderation",
   },
   {
     name: "Simple Storage",
     description: "Basic on-chain CRUD — read and write string data.",
     icon: HardDrive,
-    color: "from-gray-500 to-zinc-500",
+    color: "bg-surface border border-border",
     tag: "Storage",
   },
   {
     name: "Prediction Market",
     description: "Fetch match results and resolve predictions with AI + strict consensus.",
     icon: Trophy,
-    color: "from-amber-500 to-yellow-500",
+    color: "bg-surface border border-border",
     tag: "DeFi",
   },
   {
     name: "AI Game",
     description: "Interactive AI game — players challenge AI, consensus decides.",
     icon: Gamepad2,
-    color: "from-pink-500 to-rose-500",
+    color: "bg-surface border border-border",
     tag: "Game",
   },
   {
     name: "Custom Compose",
     description: "Start blank, drag blocks, and compose your own contract logic.",
     icon: Puzzle,
-    color: "from-indigo-500 to-violet-500",
+    color: "bg-surface border border-border",
     tag: "Custom",
   },
 ];
@@ -94,29 +94,29 @@ const FEATURES = [
     icon: Layers,
     title: "Visual Builder",
     description: "Drag & drop nodes on a canvas to design your contract logic visually.",
-    color: "text-purple-400",
-    bg: "bg-purple-500/10",
+    color: "text-foreground",
+    bg: "bg-surface",
   },
   {
     icon: Code2,
     title: "Code Editor",
     description: "Switch to full code mode with syntax highlighting and GenLayer snippets.",
-    color: "text-blue-400",
-    bg: "bg-blue-500/10",
+    color: "text-foreground",
+    bg: "bg-surface",
   },
   {
     icon: MousePointerClick,
     title: "16 Node Types",
     description: "Init, Web, LLM, Storage, Payable, ContractCall, Events, DynArray, TreeMap, and more.",
-    color: "text-emerald-400",
-    bg: "bg-emerald-500/10",
+    color: "text-foreground",
+    bg: "bg-surface",
   },
   {
     icon: FolderOpen,
     title: "Contract Manager",
     description: "Save, load, and download your contracts. All stored locally in your browser.",
-    color: "text-orange-400",
-    bg: "bg-orange-500/10",
+    color: "text-foreground",
+    bg: "bg-surface",
   },
 ];
 
@@ -131,15 +131,13 @@ export default function LandingPage() {
   return (
     <div className="min-h-screen bg-background text-foreground">
       {/* Navigation */}
-      <nav className="sticky top-0 z-50 border-b border-border bg-surface/80 backdrop-blur-md">
+      <nav className="sticky top-0 z-50 border-b border-border bg-surface/80 ">
         <div className="max-w-6xl mx-auto px-6 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="flex items-center justify-center w-9 h-9 rounded-lg bg-gradient-to-br from-accent-purple to-accent-blue">
-              <Blocks className="w-5 h-5 text-white" />
-            </div>
+              <Blocks className="w-5 h-5 text-foreground" />
             <div>
               <h1 className="text-base font-bold tracking-tight leading-none">
-                Gen<span className="text-accent-purple">Flow</span>
+                Gen<span className="text-foreground">Flow</span>
               </h1>
               <p className="text-[10px] text-muted leading-none mt-0.5">
                 Visual Builder for GenLayer
@@ -149,7 +147,7 @@ export default function LandingPage() {
           <div className="flex items-center gap-4">
             <Link
               href="/learn"
-              className="text-sm text-muted hover:text-foreground transition-colors"
+              className="text-sm text-muted hover:text-foreground transition-colors duration-150"
             >
               Learn
             </Link>
@@ -157,13 +155,13 @@ export default function LandingPage() {
               href="https://github.com/genflow-labs/genflow"
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center justify-center w-8 h-8 rounded-lg border border-border hover:border-accent-purple/40 hover:bg-surface-hover transition-all"
+              className="flex items-center justify-center w-8 h-8 rounded-none border border-border hover:border-foreground hover:bg-surface-hover transition-all duration-150"
             >
               <Github className="w-4 h-4 text-muted" />
             </a>
             <Link
               href="/builder"
-              className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-gradient-to-r from-accent-purple to-accent-blue text-white text-sm font-semibold hover:opacity-90 transition-opacity"
+              className="flex items-center gap-1.5 px-4 py-2 rounded-none bg-foreground text-background text-sm font-display font-medium hover:opacity-90 transition-all duration-150"
             >
               Open Builder
               <ArrowRight className="w-4 h-4" />
@@ -176,16 +174,16 @@ export default function LandingPage() {
       <section className="relative overflow-hidden">
         <div className="absolute inset-0 canvas-bg" />
         <div className="relative max-w-6xl mx-auto px-6 py-24 text-center">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-accent-purple/10 border border-accent-purple/20 mb-6">
-            <Sparkles className="w-3.5 h-3.5 text-accent-purple" />
-            <span className="text-xs font-medium text-accent-purple">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-none bg-surface-hover border border-foreground mb-6">
+            <Sparkles className="w-3.5 h-3.5 text-foreground" />
+            <span className="text-xs font-medium text-foreground">
               No-Code Visual Builder for GenLayer
             </span>
           </div>
 
           <h2 className="text-5xl md:text-6xl font-bold tracking-tight mb-6 leading-tight">
             Build{" "}
-            <span className="bg-gradient-to-r from-accent-purple via-accent-blue to-accent-green bg-clip-text text-transparent">
+            <span className="bg-foreground bg-clip-text text-transparent">
               Intelligent Contracts
             </span>
             <br />
@@ -200,14 +198,14 @@ export default function LandingPage() {
           <div className="flex items-center justify-center gap-4">
             <Link
               href="/builder"
-              className="flex items-center gap-2 px-8 py-3.5 rounded-xl bg-gradient-to-r from-accent-purple to-accent-blue text-white text-base font-semibold hover:opacity-90 transition-opacity shadow-lg shadow-accent-purple/20"
+              className="flex items-center gap-2 px-8 py-3.5 rounded-none bg-foreground text-background text-base font-display font-medium hover:opacity-90 transition-all duration-150 shadow-none shadow-none"
             >
               Start Building
               <ArrowRight className="w-5 h-5" />
             </Link>
             <Link
               href="/learn"
-              className="flex items-center gap-2 px-8 py-3.5 rounded-xl border border-border text-foreground text-base font-medium hover:bg-surface-hover transition-all"
+              className="flex items-center gap-2 px-8 py-3.5 rounded-none border border-border text-foreground text-base font-medium hover:bg-surface-hover transition-all duration-150"
             >
               Learn More
             </Link>
@@ -222,7 +220,7 @@ export default function LandingPage() {
               { value: "$0", label: "Server Cost" },
             ].map((stat) => (
               <div key={stat.label} className="text-center">
-                <p className="text-2xl font-bold text-accent-purple">{stat.value}</p>
+                <p className="text-2xl font-bold text-foreground">{stat.value}</p>
                 <p className="text-xs text-muted mt-0.5">{stat.label}</p>
               </div>
             ))}
@@ -246,14 +244,14 @@ export default function LandingPage() {
               return (
                 <div
                   key={feature.title}
-                  className="p-5 rounded-xl border border-border bg-surface/50 hover:border-accent-purple/20 hover:bg-surface-hover transition-all group"
+                  className="p-5 rounded-none border border-border bg-surface/50 hover:border-foreground hover:bg-surface-hover transition-all duration-150 group"
                 >
                   <div
-                    className={`inline-flex items-center justify-center w-10 h-10 rounded-lg ${feature.bg} mb-4`}
+                    className={`inline-flex items-center justify-center w-10 h-10 rounded-none ${feature.bg} mb-4`}
                   >
                     <Icon className={`w-5 h-5 ${feature.color}`} />
                   </div>
-                  <h4 className="text-sm font-semibold mb-1.5">{feature.title}</h4>
+                  <h4 className="text-sm font-display font-medium mb-1.5">{feature.title}</h4>
                   <p className="text-xs text-muted leading-relaxed">{feature.description}</p>
                 </div>
               );
@@ -278,12 +276,12 @@ export default function LandingPage() {
               return (
                 <div
                   key={template.name}
-                  className="flex items-start gap-4 p-5 rounded-xl border border-border bg-surface/50 hover:border-accent-purple/20 transition-all group"
+                  className="flex items-start gap-4 p-5 rounded-none border border-border bg-surface/50 hover:border-foreground transition-all duration-150 group"
                 >
                   <div
-                    className={`flex items-center justify-center w-12 h-12 rounded-xl bg-gradient-to-br ${template.color} shrink-0`}
+                    className={`flex items-center justify-center w-12 h-12 rounded-none ${template.color} shrink-0`}
                   >
-                    <Icon className="w-6 h-6 text-white" />
+                    <Icon className="w-6 h-6 text-foreground" />
                   </div>
                   <div>
                     <div className="flex items-center gap-2 mb-1">
@@ -314,7 +312,7 @@ export default function LandingPage() {
           <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
             {STEPS.map((step, i) => (
               <div key={step.num} className="relative text-center">
-                <div className="text-4xl font-bold text-accent-purple/20 mb-3 font-mono">
+                <div className="text-4xl font-bold text-foreground/20 mb-3 font-mono">
                   {step.num}
                 </div>
                 <h4 className="text-sm font-bold mb-1.5">{step.title}</h4>
@@ -342,31 +340,31 @@ export default function LandingPage() {
 
           <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3">
             {[
-              { icon: Blocks,       label: "Init",          color: "text-emerald-400", bg: "bg-emerald-500/10" },
-              { icon: Globe,        label: "Web Fetch",     color: "text-blue-400",    bg: "bg-blue-500/10" },
-              { icon: Brain,        label: "LLM",           color: "text-purple-400",  bg: "bg-purple-500/10" },
-              { icon: Database,     label: "Storage",       color: "text-orange-400",  bg: "bg-orange-500/10" },
-              { icon: Zap,          label: "Events",        color: "text-yellow-400",  bg: "bg-yellow-500/10" },
-              { icon: ArrowRight,   label: "Output",        color: "text-teal-400",    bg: "bg-teal-500/10" },
-              { icon: Coins,        label: "Payable",       color: "text-amber-400",   bg: "bg-amber-500/10" },
-              { icon: Link2,        label: "Contract Call", color: "text-cyan-400",    bg: "bg-cyan-500/10" },
-              { icon: Radio,        label: "Event Emit",    color: "text-rose-400",    bg: "bg-rose-500/10" },
-              { icon: ListPlus,     label: "DynArray",      color: "text-indigo-400",  bg: "bg-indigo-500/10" },
-              { icon: Map,          label: "TreeMap",       color: "text-violet-400",  bg: "bg-violet-500/10" },
-              { icon: Send,         label: "HTTP",          color: "text-sky-400",     bg: "bg-sky-500/10" },
-              { icon: Shield,       label: "Access Ctrl",   color: "text-emerald-300", bg: "bg-emerald-500/10" },
-              { icon: GitBranch,    label: "Consensus",     color: "text-lime-400",    bg: "bg-lime-500/10" },
-              { icon: Search,       label: "VecDB",         color: "text-pink-400",    bg: "bg-pink-500/10" },
-              { icon: Layers,       label: "EVM Bridge",    color: "text-slate-300",   bg: "bg-slate-500/10" },
+              { icon: Blocks,       label: "Init",          color: "text-foreground", bg: "bg-surface" },
+              { icon: Globe,        label: "Web Fetch",     color: "text-foreground",    bg: "bg-surface" },
+              { icon: Brain,        label: "LLM",           color: "text-foreground",  bg: "bg-surface" },
+              { icon: Database,     label: "Storage",       color: "text-foreground",  bg: "bg-surface" },
+              { icon: Zap,          label: "Events",        color: "text-foreground",  bg: "bg-surface" },
+              { icon: ArrowRight,   label: "Output",        color: "text-foreground",    bg: "bg-surface" },
+              { icon: Coins,        label: "Payable",       color: "text-foreground",   bg: "bg-surface" },
+              { icon: Link2,        label: "Contract Call", color: "text-foreground",    bg: "bg-surface" },
+              { icon: Radio,        label: "Event Emit",    color: "text-foreground",    bg: "bg-surface" },
+              { icon: ListPlus,     label: "DynArray",      color: "text-foreground",  bg: "bg-surface" },
+              { icon: Map,          label: "TreeMap",       color: "text-foreground",  bg: "bg-surface" },
+              { icon: Send,         label: "HTTP",          color: "text-foreground",     bg: "bg-surface" },
+              { icon: Shield,       label: "Access Ctrl",   color: "text-foreground", bg: "bg-surface" },
+              { icon: GitBranch,    label: "Consensus",     color: "text-foreground",    bg: "bg-surface" },
+              { icon: Search,       label: "VecDB",         color: "text-foreground",    bg: "bg-surface" },
+              { icon: Layers,       label: "EVM Bridge",    color: "text-foreground",   bg: "bg-surface" },
             ].map((node) => {
               const Icon = node.icon;
               return (
                 <div
                   key={node.label}
-                  className={`flex flex-col items-center gap-2 p-4 rounded-xl border border-border ${node.bg} hover:scale-105 transition-transform`}
+                  className={`flex flex-col items-center gap-2 p-4 rounded-none border border-border ${node.bg} active:scale-[0.98] transition-transform`}
                 >
                   <Icon className={`w-6 h-6 ${node.color}`} />
-                  <span className={`text-[10px] font-semibold ${node.color} text-center`}>{node.label}</span>
+                  <span className={`text-[10px] font-display font-medium ${node.color} text-center`}>{node.label}</span>
                 </div>
               );
             })}
@@ -385,7 +383,7 @@ export default function LandingPage() {
           </p>
           <Link
             href="/builder"
-            className="inline-flex items-center gap-2 px-10 py-4 rounded-xl bg-gradient-to-r from-accent-purple to-accent-blue text-white text-lg font-semibold hover:opacity-90 transition-opacity shadow-lg shadow-accent-purple/25"
+            className="inline-flex items-center gap-2 px-10 py-4 rounded-none bg-foreground text-background text-lg font-display font-medium hover:opacity-90 transition-all duration-150 shadow-none shadow-none"
           >
             Open GenFlow Builder
             <ArrowRight className="w-5 h-5" />
@@ -397,9 +395,9 @@ export default function LandingPage() {
       <footer className="border-t border-border py-6">
         <div className="max-w-6xl mx-auto px-6 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Blocks className="w-4 h-4 text-accent-purple" />
-            <span className="text-sm font-semibold">
-              Gen<span className="text-accent-purple">Flow</span>
+            <Blocks className="w-4 h-4 text-foreground" />
+            <span className="text-sm font-display font-medium">
+              Gen<span className="text-foreground">Flow</span>
             </span>
             <span className="text-xs text-muted">· Visual Builder for GenLayer</span>
           </div>

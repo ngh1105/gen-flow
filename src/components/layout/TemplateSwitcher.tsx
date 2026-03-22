@@ -45,9 +45,10 @@ export default function TemplateSwitcher() {
       {/* Trigger */}
       <button
         onClick={() => setOpen(!open)}
-        className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-border hover:border-accent-purple/40 bg-surface/60 hover:bg-surface-hover transition-all text-sm"
+        data-testid="template-switcher-trigger"
+        className="flex items-center gap-2 px-3 py-1.5 rounded-none border border-border hover:border-foreground bg-surface/60 hover:bg-surface-hover transition-all duration-150 text-sm"
       >
-        {ActiveIcon && <ActiveIcon className="w-4 h-4 text-accent-purple" />}
+        {ActiveIcon && <ActiveIcon className="w-4 h-4 text-foreground" />}
         <span className="font-medium text-foreground/90 max-w-[140px] truncate">
           {active?.name || "Select Template"}
         </span>
@@ -66,9 +67,9 @@ export default function TemplateSwitcher() {
           />
 
           {/* Menu */}
-          <div className="absolute top-full left-0 mt-1 z-50 w-[280px] rounded-xl border border-border bg-surface shadow-2xl shadow-black/40 overflow-hidden">
+          <div className="absolute top-full left-0 mt-1 z-50 w-[280px] rounded-none border border-border bg-surface shadow-none shadow-none overflow-hidden">
             <div className="px-3 py-2 border-b border-border">
-              <p className="text-[10px] font-semibold text-muted uppercase tracking-wider">
+              <p className="text-[10px] font-display font-medium text-muted uppercase tracking-widest">
                 Contract Templates ({templates.length})
               </p>
             </div>
@@ -80,37 +81,42 @@ export default function TemplateSwitcher() {
                   <button
                     key={t.id}
                     onClick={() => handleSelect(t.id)}
-                    className={`w-full flex items-start gap-3 px-3 py-2.5 rounded-lg text-left transition-all ${
+                    data-testid={`template-option-${t.id}`}
+                    className={`w-full flex items-start gap-3 px-3 py-2.5 rounded-none text-left transition-all duration-150 ${
                       isActive
-                        ? "bg-accent-purple/10 border border-accent-purple/25"
-                        : "hover:bg-surface-hover border border-transparent"
+                        ? "bg-foreground text-background border border-foreground"
+                        : "hover:bg-surface-hover border border-transparent text-foreground"
                     }`}
                   >
                     <div
-                      className={`mt-0.5 flex items-center justify-center w-8 h-8 rounded-lg shrink-0 ${
+                      className={`mt-0.5 flex items-center justify-center w-8 h-8 rounded-none shrink-0 ${
                         isActive
-                          ? "bg-accent-purple/20"
+                          ? "bg-background"
                           : "bg-border/50"
                       }`}
                     >
                       <Icon
                         className={`w-4 h-4 ${
-                          isActive ? "text-accent-purple" : "text-muted"
+                          isActive ? "text-foreground" : "text-muted"
                         }`}
                       />
                     </div>
                     <div className="min-w-0">
                       <p
-                        className={`text-sm font-semibold leading-tight ${
-                          isActive ? "text-accent-purple" : "text-foreground"
+                        className={`text-sm font-display font-medium leading-tight ${
+                          isActive ? "text-background" : "text-foreground"
                         }`}
                       >
                         {t.name}
                       </p>
-                      <p className="text-[11px] text-muted leading-snug mt-0.5 line-clamp-2">
+                      <p className={`text-[11px] leading-snug mt-0.5 line-clamp-2 ${
+                        isActive ? "text-background/80" : "text-muted"
+                      }`}>
                         {t.description}
                       </p>
-                      <span className="inline-block mt-1 text-[9px] px-1.5 py-0.5 rounded bg-border/40 text-muted/70 font-mono">
+                      <span className={`inline-block mt-1 text-[9px] px-1.5 py-0.5 rounded-none font-mono ${
+                        isActive ? "bg-background/20 text-background" : "bg-border/40 text-muted/70"
+                      }`}>
                         {t.category}
                       </span>
                     </div>

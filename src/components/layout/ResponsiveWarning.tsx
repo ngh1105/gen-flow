@@ -19,8 +19,8 @@ export default function ResponsiveWarning() {
   return (
     <div className="fixed inset-0 z-[200] flex items-center justify-center bg-background p-8">
       <div className="text-center max-w-sm">
-        <div className="flex items-center justify-center w-16 h-16 rounded-2xl bg-accent-purple/10 mx-auto mb-4">
-          <Monitor className="w-8 h-8 text-accent-purple" />
+        <div className="flex items-center justify-center w-16 h-16 rounded-none bg-foreground mx-auto mb-4">
+          <Monitor className="w-8 h-8 text-background" />
         </div>
         <h2 className="text-xl font-bold mb-2">Larger Screen Required</h2>
         <p className="text-sm text-muted leading-relaxed mb-4">
@@ -30,7 +30,7 @@ export default function ResponsiveWarning() {
         </p>
         <Link
           href="/"
-          className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-accent-purple/10 text-accent-purple text-sm font-medium hover:bg-accent-purple/20 transition-colors"
+          className="inline-flex items-center gap-2 px-4 py-2 rounded-none bg-foreground text-background hover:opacity-90 active:scale-[0.98] text-sm font-medium hover:bg-foreground transition-colors duration-150"
         >
           ← Back to Home
         </Link>

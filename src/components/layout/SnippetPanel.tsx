@@ -85,11 +85,11 @@ export default function SnippetPanel({ onInsert }: SnippetPanelProps) {
   );
 
   return (
-    <div className="w-[220px] shrink-0 flex flex-col h-full bg-surface border-l border-border">
+    <div className="w-[280px] shrink-0 flex flex-col h-full bg-surface border-r border-border">
       {/* Header */}
       <div className="flex items-center gap-2 px-3 py-3 border-b border-border">
-        <Sparkles className="w-3.5 h-3.5 text-accent-purple" />
-        <span className="text-[11px] font-semibold text-muted uppercase tracking-wider">
+        <Sparkles className="w-3.5 h-3.5 text-foreground" />
+        <span className="text-[11px] font-display font-medium text-muted uppercase tracking-widest">
           Snippets
         </span>
       </div>
@@ -105,7 +105,7 @@ export default function SnippetPanel({ onInsert }: SnippetPanelProps) {
                   expandedCategory === cat.name ? null : cat.name
                 )
               }
-              className="w-full flex items-center gap-1.5 px-2 py-1.5 rounded-md text-xs font-medium text-muted hover:text-foreground hover:bg-surface-hover transition-all"
+              className="w-full flex items-center gap-1.5 px-2 py-1.5 rounded-none text-xs font-medium text-muted hover:text-foreground hover:bg-surface-hover transition-all duration-150"
             >
               <ChevronRight
                 className={`w-3 h-3 transition-transform ${
@@ -122,7 +122,7 @@ export default function SnippetPanel({ onInsert }: SnippetPanelProps) {
                   <button
                     key={snippet.label}
                     onClick={() => onInsert(snippet.code)}
-                    className="w-full text-left px-2.5 py-1.5 rounded-md text-[11px] font-mono text-foreground/70 hover:bg-accent-purple/10 hover:text-accent-purple border border-transparent hover:border-accent-purple/20 transition-all"
+                    className="w-full text-left px-2.5 py-1.5 rounded-none text-[11px] font-mono text-foreground/70 hover:bg-foreground hover:text-foreground border border-transparent hover:border-foreground transition-all duration-150"
                     title={`Insert: ${snippet.label}`}
                   >
                     {snippet.label}

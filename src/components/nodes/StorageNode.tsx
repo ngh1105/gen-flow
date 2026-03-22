@@ -18,9 +18,9 @@ export default function StorageNode() {
       />
 
       {/* Header */}
-      <div className="flex items-center gap-2 px-4 py-2.5 rounded-t-[11px] bg-gradient-to-r from-orange-600/20 to-orange-500/10 border-b border-orange-500/20">
-        <Database className="w-4 h-4 text-orange-400" />
-        <span className="text-xs font-semibold text-orange-300 uppercase tracking-wider">
+      <div className="flex items-center gap-2 px-4 py-2.5 rounded-none bg-surface border-b border-border">
+        <Database className="w-4 h-4 text-foreground" />
+        <span className="text-xs font-display font-medium text-foreground uppercase tracking-widest">
           Storage
         </span>
       </div>
@@ -28,7 +28,7 @@ export default function StorageNode() {
       {/* Body */}
       <div className="px-4 py-3 space-y-2">
         <div className="flex items-center gap-2 text-xs text-muted">
-          <div className="w-2 h-2 rounded-full bg-orange-400/60" />
+          <div className="w-2 h-2 rounded-none bg-surface" />
           <span>On-chain state variable name</span>
         </div>
         <input
@@ -36,10 +36,10 @@ export default function StorageNode() {
           placeholder="e.g. data, items, records"
           value={storageName}
           onChange={(e) => setStorageName(e.target.value)}
-          className="w-full px-3 py-1.5 rounded-md bg-background/60 border border-border text-xs font-mono text-foreground placeholder-muted/50 focus:outline-none focus:border-orange-500/40"
+          className="w-full px-3 py-1.5 rounded-none bg-background border border-border text-xs font-mono text-foreground placeholder-muted/50 focus:outline-none focus:border-border"
         />
-        <div className="px-3 py-2 rounded-md bg-background/40 border border-border text-xs font-mono text-foreground/70">
-          <div>{storageName || "data"}: <span className="text-orange-300">str</span></div>
+        <div className="px-3 py-2 rounded-none bg-background border border-border text-xs font-mono text-foreground/70">
+          <div>{storageName || "data"}: <span className="text-foreground">str</span></div>
         </div>
       </div>
 
