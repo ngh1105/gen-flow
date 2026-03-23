@@ -8,6 +8,10 @@ import { simpleStorageTemplate } from "./templates/simpleStorageTemplate";
 import { predictionMarketTemplate } from "./templates/predictionMarketTemplate";
 import { aiGameTemplate } from "./templates/aiGameTemplate";
 import { customComposeTemplate } from "./templates/customComposeTemplate";
+import { aiGovernanceTemplate } from "./templates/aiGovernanceTemplate";
+import { futureOfWorkTemplate } from "./templates/futureOfWorkTemplate";
+import { onchainJusticeTemplate } from "./templates/onchainJusticeTemplate";
+import { oracleBenchmarkTemplate } from "./templates/oracleBenchmarkTemplate";
 
 export interface ContractTemplate {
   id: string;
@@ -15,6 +19,8 @@ export interface ContractTemplate {
   icon: string;
   description: string;
   category: string;
+  tags?: string[];
+  featured?: boolean;
   placeholders: string[];
   requiredNodes: string[];
   defaultNodes: Node[];
@@ -24,13 +30,17 @@ export interface ContractTemplate {
 
 const templates: ContractTemplate[] = [
   customComposeTemplate,
+  aiGovernanceTemplate,
+  predictionMarketTemplate,
+  aiGameTemplate,
+  futureOfWorkTemplate,
+  onchainJusticeTemplate,
+  oracleBenchmarkTemplate,
   aiArbitratorTemplate,
   daoVoteTemplate,
   priceOracleTemplate,
   contentFilterTemplate,
   simpleStorageTemplate,
-  predictionMarketTemplate,
-  aiGameTemplate,
 ];
 
 export function getTemplate(id: string): ContractTemplate | undefined {

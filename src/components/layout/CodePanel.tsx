@@ -1,19 +1,32 @@
 "use client";
 
-import { useState, useCallback, useRef, useEffect } from "react";
+import { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import Editor from "@monaco-editor/react";
-import { Copy, Check, Code2, Loader2, Download } from "lucide-react";
+import {
+  Copy,
+  Check,
+  CheckCircle2,
+  CircleDashed,
+  Code2,
+  Loader2,
+  Download,
+} from "lucide-react";
 
 import { useFlowStore } from "@/store/useFlowStore";
 import { generateCode } from "@/engine/codeGenerator";
 import { registerGenVMLinter, runLinterOnCode } from "@/engine/monacoGenVM";
 import type { LintDiagnostic } from "@/engine/genvm-linter";
+import {
+  getBuilderStatus,
+} from "@/lib/exportRequirements";
+import { addBuilderBreadcrumb } from "@/lib/telemetry";
 import LinterPanel from "./LinterPanel";
 
 export default function CodePanel() {
   const nodeData = useFlowStore((s) => s.nodeData);
   const activeTemplateId = useFlowStore((s) => s.activeTemplateId);
   const nodes = useFlowStore((s) => s.nodes);
+  const edges = useFlowStore((s) => s.edges);
   const [copied, setCopied] = useState(false);
   const [diagnostics, setDiagnostics] = useState<LintDiagnostic[]>([]);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -22,11 +35,27 @@ export default function CodePanel() {
   const monacoRef = useRef<any>(null);
 
   const code = generateCode(nodeData, activeTemplateId, nodes);
+  const builderStatus = useMemo(
+    () =>
+      getBuilderStatus(nodeData, nodes, {
+        activeTemplateId,
+        edges,
+      }),
+    [activeTemplateId, edges, nodeData, nodes]
+  );
+  const visibleRequirements = builderStatus.requirements.filter(
+    (requirement) => requirement.required
+  );
+  const missingLabels = builderStatus.blockers.map((requirement) => requirement.label);
+  const isComplete = builderStatus.readyToExport;
+  const exportTitle = isComplete
+    ? "Download .py file"
+    : `Missing: ${missingLabels.join(", ")}`;
 
   // Re-lint whenever generated code changes (node data, template switch, etc.)
   useEffect(() => {
     if (!editorRef.current || !monacoRef.current) {
-      // Editor not mounted yet — just update diagnostics state
+      // Editor not mounted yet - just update diagnostics state
       runLinterOnCode(code, setDiagnostics);
       return;
     }
@@ -40,9 +69,11 @@ export default function CodePanel() {
     if (model) {
       const markers = diags.map((d) => ({
         severity:
-          d.severity === "error" ? monaco.MarkerSeverity.Error
-          : d.severity === "warning" ? monaco.MarkerSeverity.Warning
-          : monaco.MarkerSeverity.Info,
+          d.severity === "error"
+            ? monaco.MarkerSeverity.Error
+            : d.severity === "warning"
+              ? monaco.MarkerSeverity.Warning
+              : monaco.MarkerSeverity.Info,
         startLineNumber: d.line,
         startColumn: d.startCol,
         endLineNumber: d.line,
@@ -56,13 +87,21 @@ export default function CodePanel() {
   }, [code]);
 
   const handleCopy = useCallback(() => {
+    if (!isComplete) return;
     navigator.clipboard.writeText(code).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     });
-  }, [code]);
+  }, [code, isComplete]);
 
   const handleDownload = useCallback(() => {
+    if (!isComplete) {
+      addBuilderBreadcrumb("export_blocked", {
+        templateId: activeTemplateId,
+        blockerIds: missingLabels,
+      });
+      return;
+    }
     const contractName = nodeData.contractName.trim() || "my_contract";
     const fileName = `${contractName.toLowerCase().replace(/\s+/g, "_")}.py`;
     const blob = new Blob([code], { type: "text/x-python" });
@@ -72,19 +111,12 @@ export default function CodePanel() {
     a.download = fileName;
     a.click();
     URL.revokeObjectURL(url);
-  }, [code, nodeData.contractName]);
-
-  // Validate based on ACTIVE NODE TYPES on the canvas, not generated code content.
-  // This avoids false-blocking templates that internally use exec_prompt/nondet.web
-  // (e.g. Price Oracle) as those don't have corresponding user-facing input fields.
-  const activeNodeTypes = new Set(nodes.map((n) => n.type));
-  const needsUrl = activeNodeTypes.has("webFetchNode");
-  // httpNode: URL is hardcoded in code gen, not user-inputtable — don't block export
-  const needsPrompt = activeNodeTypes.has("llmPromptNode");
-  const isComplete =
-    nodeData.contractName.trim() !== "" &&
-    (!needsUrl || nodeData.url.trim() !== "") &&
-    (!needsPrompt || nodeData.prompt.trim() !== "");
+    addBuilderBreadcrumb("export_success", {
+      templateId: activeTemplateId,
+      readyToExport: true,
+      blockerIds: [],
+    });
+  }, [activeTemplateId, code, isComplete, missingLabels, nodeData.contractName]);
 
   // Jump to a specific line in Monaco
   const handleJumpToLine = useCallback((line: number) => {
@@ -97,7 +129,7 @@ export default function CodePanel() {
 
   // Lint severity summary for header badge
   const errorCount = diagnostics.filter((d) => d.severity === "error").length;
-  const warnCount  = diagnostics.filter((d) => d.severity === "warning").length;
+  const warnCount = diagnostics.filter((d) => d.severity === "warning").length;
 
   return (
     <div className="flex flex-col h-full border-l border-border bg-surface">
@@ -116,7 +148,7 @@ export default function CodePanel() {
           )}
           {diagnostics.length === 0 && code.trim() && (
             <span className="text-[9px] px-1.5 py-0.5 rounded font-mono bg-foreground text-background hover:opacity-90 active:scale-[0.98]">
-              ✓ valid
+              OK
             </span>
           )}
         </div>
@@ -124,21 +156,22 @@ export default function CodePanel() {
           {/* Download Button */}
           <button
             onClick={handleDownload}
-            disabled={!isComplete}
+            aria-disabled={!isComplete}
             data-testid="generated-download-button"
             className={`flex items-center gap-1 px-2 py-1.5 rounded-none text-xs font-medium transition-all duration-150 ${
               !isComplete
                 ? "opacity-40 cursor-not-allowed bg-border text-muted"
                 : "bg-foreground text-background hover:opacity-90 active:scale-[0.98] hover:bg-foreground border border-foreground hover:border-foreground"
             }`}
-            title={!isComplete ? "Fill all fields" : "Download .py file"}
+            title={exportTitle}
+            aria-label={exportTitle}
           >
             <Download className="w-3.5 h-3.5" />
           </button>
           {/* Copy Button */}
           <button
             onClick={handleCopy}
-            disabled={!isComplete}
+            aria-disabled={!isComplete}
             className={`
               flex items-center gap-1.5 px-3 py-1.5 rounded-none text-xs font-medium transition-all duration-150
               ${
@@ -146,10 +179,11 @@ export default function CodePanel() {
                   ? "opacity-40 cursor-not-allowed bg-border text-muted"
                   : copied
                     ? "bg-foreground text-background hover:opacity-90 active:scale-[0.98] copy-success"
-                    : "bg-foreground text-background hover:opacity-90 active:scale-[0.98] hover:bg-foreground border border-foreground hover:border-foreground"
+                  : "bg-foreground text-background hover:opacity-90 active:scale-[0.98] hover:bg-foreground border border-foreground hover:border-foreground"
               }
             `}
-            title={!isComplete ? "Fill all fields to enable copy" : "Copy to clipboard"}
+            title={isComplete ? "Copy to clipboard" : exportTitle}
+            aria-label={isComplete ? "Copy generated code" : exportTitle}
           >
             {copied ? (
               <>
@@ -164,6 +198,71 @@ export default function CodePanel() {
             )}
           </button>
         </div>
+      </div>
+
+      <div className="px-4 py-2 border-b border-border bg-background/60 shrink-0">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <p className="text-[10px] font-display font-medium uppercase tracking-widest text-muted">
+              Export Checklist
+            </p>
+            <p className="mt-1 text-[11px] text-muted">
+              Fill the required inputs for the active nodes before export.
+            </p>
+          </div>
+          <span
+            className={`px-2 py-0.5 text-[10px] font-display font-medium uppercase tracking-widest rounded-none border ${
+              isComplete
+                ? "border-foreground bg-foreground text-background"
+                : "border-border bg-surface text-foreground"
+            }`}
+          >
+            {isComplete ? "Ready" : "Action Needed"}
+          </span>
+        </div>
+
+        <div className="mt-3 flex flex-wrap gap-2">
+          {visibleRequirements.map((requirement) => (
+            <div
+              key={requirement.id}
+              data-testid={`export-check-${requirement.id}`}
+              className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-none border text-[11px] ${
+                requirement.done
+                  ? "border-foreground bg-foreground text-background"
+                  : "border-border bg-surface text-foreground"
+              }`}
+            >
+              {requirement.done ? (
+                <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+              ) : (
+                <CircleDashed className="w-3.5 h-3.5 shrink-0" />
+              )}
+              <span>{requirement.label}</span>
+              <span className={`${requirement.done ? "text-background/80" : "text-muted"}`}>
+                {requirement.done ? "done" : "required"}
+              </span>
+            </div>
+          ))}
+        </div>
+
+        {builderStatus.blockers.length > 0 && (
+          <div className="mt-3 space-y-1 border border-border bg-surface px-3 py-2 text-[11px] text-muted">
+            {builderStatus.blockers.map((blocker) => (
+              <p key={blocker.id}>{blocker.message}</p>
+            ))}
+          </div>
+        )}
+
+        {builderStatus.warnings.length > 0 && (
+          <div className="mt-3 space-y-1 border border-border bg-background px-3 py-2 text-[11px] text-muted">
+            <p className="font-display text-[10px] uppercase tracking-widest text-foreground">
+              Flow guidance
+            </p>
+            {builderStatus.warnings.slice(0, 2).map((warning) => (
+              <p key={warning.id}>{warning.message}</p>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Monaco Editor */}

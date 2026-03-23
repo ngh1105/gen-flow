@@ -1,16 +1,36 @@
+"use client";
+
 import { create } from "zustand";
 import {
-  type Node,
   type Edge,
-  type OnNodesChange,
-  type OnEdgesChange,
+  type Node,
   type OnConnect,
-  applyNodeChanges,
-  applyEdgeChanges,
+  type OnEdgesChange,
+  type OnNodesChange,
   addEdge,
+  applyEdgeChanges,
+  applyNodeChanges,
 } from "@xyflow/react";
 
+import {
+  CURRENT_SAVED_CONTRACT_SCHEMA_VERSION,
+  createBuilderSnapshot,
+  createBuilderSnapshotFromTemplate,
+  getBuilderSnapshotFingerprint,
+  hasMeaningfulWorkingSession,
+  loadSavedContracts,
+  loadWorkingSession,
+  persistSavedContracts,
+  sanitizeSavedCustomCode,
+  sanitizeSavedEdges,
+  sanitizeSavedNodes,
+} from "@/lib/contractPersistence";
+import {
+  buildImportedSnapshot,
+  type ProjectDocument,
+} from "@/lib/projectDocument";
 import { getDefaultTemplate, getTemplate } from "@/engine/templateRegistry";
+import { addBuilderBreadcrumb } from "@/lib/telemetry";
 
 export interface StorageField {
   id: string;
@@ -34,8 +54,20 @@ export interface NodeData {
   constructorArgs: ConstructorArg[];
 }
 
+export type EditorMode = "visual" | "code";
+
+export interface BuilderSnapshot {
+  activeTemplateId: string;
+  nodes: Node[];
+  edges: Edge[];
+  nodeData: NodeData;
+  customCode: string;
+  editorMode: EditorMode;
+}
+
 export interface SavedContract {
   id: string;
+  schemaVersion: number;
   name: string;
   templateId: string;
   nodeData: NodeData;
@@ -45,431 +77,465 @@ export interface SavedContract {
   savedAt: number;
 }
 
-interface FlowState {
-  // Template
-  activeTemplateId: string;
+export interface WorkingSession extends BuilderSnapshot {
+  schemaVersion: number;
+  updatedAt: number;
+  baselineFingerprint: string;
+  activeSavedContractId: string | null;
+  lastNamedSaveAt: number | null;
+}
 
-  // React Flow
-  nodes: Node[];
-  edges: Edge[];
-  nodeData: NodeData;
-
-  // Editor mode
-  editorMode: "visual" | "code";
-  customCode: string;
-
-  // Saved contracts
+interface FlowState extends BuilderSnapshot {
   savedContracts: SavedContract[];
+  activeSavedContractId: string | null;
+  hasUnsavedChanges: boolean;
+  lastDraftSavedAt: number | null;
+  lastNamedSaveAt: number | null;
+  restoredDraftAt: number | null;
+  baselineFingerprint: string;
 
-  // React Flow event handlers
   onNodesChange: OnNodesChange;
   onEdgesChange: OnEdgesChange;
   onConnect: OnConnect;
 
-  // Data update actions
   setContractName: (value: string) => void;
   setUrl: (value: string) => void;
   setPrompt: (value: string) => void;
   setNumValidators: (value: number) => void;
   setStorageName: (value: string) => void;
 
-  // Dynamic storage fields
   addStorageField: () => void;
   updateStorageField: (id: string, updates: Partial<Omit<StorageField, "id">>) => void;
   removeStorageField: (id: string) => void;
 
-  // Constructor args
   addConstructorArg: () => void;
   updateConstructorArg: (id: string, updates: Partial<Omit<ConstructorArg, "id">>) => void;
   removeConstructorArg: (id: string) => void;
 
-  // Template actions
   switchTemplate: (templateId: string) => void;
-
-  // Editor mode actions
-  setEditorMode: (mode: "visual" | "code") => void;
+  setEditorMode: (mode: EditorMode) => void;
   setCustomCode: (code: string) => void;
 
-  // Contract management
   saveContract: (name: string) => void;
   loadContract: (id: string) => void;
   deleteContract: (id: string) => void;
+  importProjectDocument: (document: ProjectDocument) => void;
 
-  // Node management (drag from sidebar)
   addNode: (type: string, position: { x: number; y: number }) => void;
+
+  syncDraftPersistence: (savedAt: number, hasUnsavedChanges: boolean) => void;
+  dismissDraftRecoveryNotice: () => void;
 }
 
 const defaultTemplate = getDefaultTemplate();
+const CUSTOM_COMPOSE_TEMPLATE_ID = "custom-compose";
 
-const ALLOWED_GENVM_TYPES = new Set([
-  "str",
-  "bool",
-  "u256",
-  "u128",
-  "u64",
-  "u32",
-  "i256",
-  "bigint",
-  "Address",
-  "DynArray[str]",
-  "DynArray[u256]",
-  "DynArray[Address]",
-  "TreeMap[str, str]",
-  "TreeMap[Address, str]",
-  "TreeMap[Address, u256]",
-]);
-
-/** Sanitize a single StorageField — repairs or rejects each item individually */
-function sanitizeStorageField(x: unknown): StorageField | null {
-  if (!x || typeof x !== "object") return null;
-  const f = x as Record<string, unknown>;
-  if (typeof f.id !== "string" || f.id.length === 0) return null;
-  if (typeof f.name !== "string") return null;
-  return {
-    id: f.id,
-    name: f.name,
-    // Recover unknown or invalid types to default 'str' rather than dropping the field
-    type: typeof f.type === "string" && ALLOWED_GENVM_TYPES.has(f.type) ? f.type : "str",
-  };
-}
-
-/** Sanitize a single ConstructorArg — repairs or rejects each item individually */
-function sanitizeConstructorArg(x: unknown): ConstructorArg | null {
-  if (!x || typeof x !== "object") return null;
-  const a = x as Record<string, unknown>;
-  if (typeof a.id !== "string" || a.id.length === 0) return null;
-  if (typeof a.name !== "string") return null;
-  return {
-    id: a.id,
-    name: a.name,
-    type: typeof a.type === "string" && ALLOWED_GENVM_TYPES.has(a.type) ? a.type : "str",
-  };
-}
-
-/** Migrate old NodeData shapes to current schema — safe to run on any version */
-export function migrateNodeData(raw: Partial<NodeData>): NodeData {
-  const rawFields = Array.isArray(raw.storageFields) ? raw.storageFields : [];
-  const rawArgs   = Array.isArray(raw.constructorArgs) ? raw.constructorArgs : [];
-  return {
-    contractName: typeof raw.contractName === "string" ? raw.contractName : "",
-    url:          typeof raw.url          === "string" ? raw.url          : "",
-    prompt:       typeof raw.prompt       === "string" ? raw.prompt       : "",
-    numValidators: typeof raw.numValidators === "number" ? raw.numValidators : 3,
-    storageName:  typeof raw.storageName  === "string" ? raw.storageName  : "",
-    storageFields:   rawFields.map(sanitizeStorageField).filter((f): f is StorageField => f !== null),
-    constructorArgs: rawArgs.map(sanitizeConstructorArg).filter((a): a is ConstructorArg => a !== null),
-  };
-}
-
-function sanitizeNode(x: unknown): Node | null {
-  if (!x || typeof x !== "object") return null;
-  const n = x as Record<string, unknown>;
-  if (typeof n.id !== "string" || n.id.length === 0) return null;
-  if (typeof n.type !== "string" || n.type.length === 0) return null;
-
-  const positionRaw = (typeof n.position === "object" && n.position !== null)
-    ? (n.position as Record<string, unknown>)
-    : null;
-
-  const position = {
-    x: typeof positionRaw?.x === "number" ? positionRaw.x : 0,
-    y: typeof positionRaw?.y === "number" ? positionRaw.y : 0,
-  };
-
-  const data = (typeof n.data === "object" && n.data !== null) ? n.data : {};
-  return {
-    ...(n as unknown as Node),
-    id: n.id,
-    type: n.type,
-    position,
-    data: data as Node["data"],
-  };
-}
-
-function sanitizeEdge(x: unknown): Edge | null {
-  if (!x || typeof x !== "object") return null;
-  const e = x as Record<string, unknown>;
-  if (typeof e.id !== "string" || e.id.length === 0) return null;
-  if (typeof e.source !== "string" || e.source.length === 0) return null;
-  if (typeof e.target !== "string" || e.target.length === 0) return null;
-  return {
-    ...(e as unknown as Edge),
-    id: e.id,
-    source: e.source,
-    target: e.target,
-  };
-}
-
-export function sanitizeSavedNodes(input: unknown): Node[] {
-  if (!Array.isArray(input)) return [];
-  return input.map(sanitizeNode).filter((n): n is Node => n !== null);
-}
-
-export function sanitizeSavedEdges(input: unknown, nodeIds: Set<string>): Edge[] {
-  if (!Array.isArray(input)) return [];
-  return input
-    .map(sanitizeEdge)
-    .filter((e): e is Edge => e !== null)
-    .filter((e) => nodeIds.has(e.source) && nodeIds.has(e.target));
-}
-
-export function sanitizeSavedCustomCode(input: unknown): string {
-  return typeof input === "string" ? input : "";
-}
-
-/** Runtime schema guard — rejects corrupted or tampered SavedContract entries */
-function isValidSavedContract(obj: unknown): obj is SavedContract {
-  if (typeof obj !== "object" || obj === null) return false;
-  const c = obj as Record<string, unknown>;
-  return (
-    typeof c.id === "string" && c.id.length > 0 &&
-    typeof c.name === "string" &&
-    typeof c.templateId === "string" &&
-    (c.nodeData === undefined || typeof c.nodeData === "object") &&
-    (c.customCode === undefined || typeof c.customCode === "string") &&
-    (c.nodes === undefined || Array.isArray(c.nodes)) &&
-    (c.edges === undefined || Array.isArray(c.edges))
-  );
-}
-
-function loadSavedContracts(): SavedContract[] {
-  if (typeof window === "undefined") return [];
-  try {
-    const stored = localStorage.getItem("genflow-contracts");
-    if (!stored) return [];
-    const parsed: unknown[] = JSON.parse(stored);
-    if (!Array.isArray(parsed)) return [];
-    // Filter malformed entries, then migrate nodeData to current schema
-    return parsed
-      .filter(isValidSavedContract)
-      .map((c) => ({ ...c, nodeData: migrateNodeData(c.nodeData) }));
-  } catch {
-    return [];
-  }
-}
-
-function persistContracts(contracts: SavedContract[]) {
-  if (typeof window === "undefined") return;
-  localStorage.setItem("genflow-contracts", JSON.stringify(contracts));
-}
-
-/** Derives next safe counter value from a node list */
-function maxNodeId(nodes: Node[]): number {
-  let max = 100;
-  for (const n of nodes) {
-    const num = parseInt(n.id.replace(/^node-/, ""), 10);
-    if (!isNaN(num) && num >= max) max = num + 1;
-  }
-  return max;
-}
+const restoredSession = loadWorkingSession();
+const initialSnapshot = restoredSession
+  ? createBuilderSnapshot(restoredSession)
+  : createBuilderSnapshotFromTemplate(defaultTemplate.id);
+const initialSavedContracts = loadSavedContracts();
+const initialBaselineFingerprint =
+  restoredSession?.baselineFingerprint ??
+  getBuilderSnapshotFingerprint(initialSnapshot);
+const initialHasUnsavedChanges =
+  getBuilderSnapshotFingerprint(initialSnapshot) !== initialBaselineFingerprint;
 
 function deepClone<T>(value: T): T {
   if (typeof globalThis.structuredClone === "function") {
     return globalThis.structuredClone(value);
   }
+
   return JSON.parse(JSON.stringify(value)) as T;
 }
 
 function makeId(prefix: string): string {
-  if (typeof globalThis.crypto !== "undefined" && typeof globalThis.crypto.randomUUID === "function") {
+  if (
+    typeof globalThis.crypto !== "undefined" &&
+    typeof globalThis.crypto.randomUUID === "function"
+  ) {
     return `${prefix}-${globalThis.crypto.randomUUID()}`;
   }
+
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
-let nodeIdCounter = maxNodeId(defaultTemplate.defaultNodes);
+function maxNodeId(nodes: Node[]): number {
+  let max = 100;
 
-export const useFlowStore = create<FlowState>((set, get) => ({
-  activeTemplateId: defaultTemplate.id,
-  nodes: deepClone(defaultTemplate.defaultNodes),
-  edges: deepClone(defaultTemplate.defaultEdges),
-  nodeData: {
-    contractName: "",
-    url: "",
-    prompt: "",
-    numValidators: 3,
-    storageName: "",
-    storageFields: [],
-    constructorArgs: [],
-  },
+  for (const node of nodes) {
+    const value = Number.parseInt(node.id.replace(/^node-/, ""), 10);
+    if (!Number.isNaN(value) && value >= max) max = value + 1;
+  }
 
-  editorMode: "visual",
-  customCode: "",
-  savedContracts: loadSavedContracts(),
+  return max;
+}
 
-  onNodesChange: (changes) => {
-    set({ nodes: applyNodeChanges(changes, get().nodes) });
-  },
+let nodeIdCounter = maxNodeId(initialSnapshot.nodes);
 
-  onEdgesChange: (changes) => {
-    set({ edges: applyEdgeChanges(changes, get().edges) });
-  },
-
-  onConnect: (connection) => {
-    set({ edges: addEdge({ ...connection, animated: true }, get().edges) });
-  },
-
-  setContractName: (value) =>
-    set((state) => ({ nodeData: { ...state.nodeData, contractName: value } })),
-
-  setUrl: (value) =>
-    set((state) => ({ nodeData: { ...state.nodeData, url: value } })),
-
-  setPrompt: (value) =>
-    set((state) => ({ nodeData: { ...state.nodeData, prompt: value } })),
-
-  setNumValidators: (value) =>
-    set((state) => ({ nodeData: { ...state.nodeData, numValidators: value } })),
-
-  setStorageName: (value) =>
-    set((state) => ({ nodeData: { ...state.nodeData, storageName: value } })),
-
-  addStorageField: () =>
-    set((state) => ({
-      nodeData: {
-        ...state.nodeData,
-        storageFields: [
-          ...state.nodeData.storageFields,
-          { id: makeId("sf"), name: "", type: "str" },
-        ],
-      },
-    })),
-
-  updateStorageField: (id, updates) =>
-    set((state) => ({
-      nodeData: {
-        ...state.nodeData,
-        storageFields: state.nodeData.storageFields.map((f) =>
-          f.id === id ? { ...f, ...updates } : f
-        ),
-      },
-    })),
-
-  removeStorageField: (id) =>
-    set((state) => ({
-      nodeData: {
-        ...state.nodeData,
-        storageFields: state.nodeData.storageFields.filter((f) => f.id !== id),
-      },
-    })),
-
-  addConstructorArg: () =>
-    set((state) => ({
-      nodeData: {
-        ...state.nodeData,
-        constructorArgs: [
-          ...state.nodeData.constructorArgs,
-          { id: makeId("ca"), name: "", type: "str" },
-        ],
-      },
-    })),
-
-  updateConstructorArg: (id, updates) =>
-    set((state) => ({
-      nodeData: {
-        ...state.nodeData,
-        constructorArgs: state.nodeData.constructorArgs.map((a) =>
-          a.id === id ? { ...a, ...updates } : a
-        ),
-      },
-    })),
-
-  removeConstructorArg: (id) =>
-    set((state) => ({
-      nodeData: {
-        ...state.nodeData,
-        constructorArgs: state.nodeData.constructorArgs.filter((a) => a.id !== id),
-      },
-    })),
-
-  switchTemplate: (templateId) => {
-    const template = getTemplate(templateId);
-    if (!template) return;
-
-    set({
-      activeTemplateId: templateId,
-      nodes: deepClone(template.defaultNodes),
-      edges: deepClone(template.defaultEdges),
-      customCode: "",
-      nodeData: {
-        contractName: "",
-        url: "",
-        prompt: "",
-        numValidators: 3,
-        storageName: "",
-        storageFields: [],
-        constructorArgs: [],
-      },
-    });
-  },
-
-  setEditorMode: (mode) => set({ editorMode: mode }),
-
-  setCustomCode: (code) => set({ customCode: code }),
-
-  saveContract: (name) => {
+export const useFlowStore = create<FlowState>((set, get) => {
+  const syncDirtyState = () => {
     const state = get();
-    const contract: SavedContract = {
-      id: makeId("contract"),
-      name,
-      templateId: state.activeTemplateId,
-      nodeData: deepClone(state.nodeData),
+    const fingerprint = getBuilderSnapshotFingerprint({
+      activeTemplateId: state.activeTemplateId,
+      nodes: state.nodes,
+      edges: state.edges,
+      nodeData: state.nodeData,
       customCode: state.customCode,
-      nodes: deepClone(state.nodes),
-      edges: deepClone(state.edges),
-      savedAt: Date.now(),
-    };
-    const updated = [...state.savedContracts, contract];
-    persistContracts(updated);
-    set({ savedContracts: updated });
-  },
-
-  loadContract: (id) => {
-    const state = get();
-    const contract = state.savedContracts.find((c) => c.id === id);
-    if (!contract) return;
-
-    const template = getTemplate(contract.templateId);
-    if (!template) return;
-
-    const parsedNodes = sanitizeSavedNodes(contract.nodes);
-    const useTemplateNodes = parsedNodes.length === 0;
-    const safeNodes = useTemplateNodes
-      ? deepClone(template.defaultNodes)
-      : deepClone(parsedNodes);
-    const nodeIds = new Set(safeNodes.map((n) => n.id));
-
-    const parsedEdges = sanitizeSavedEdges(contract.edges, nodeIds);
-    const safeEdges = useTemplateNodes && parsedEdges.length === 0
-      ? deepClone(template.defaultEdges)
-      : deepClone(parsedEdges);
-
-    const safeCode = sanitizeSavedCustomCode(contract.customCode);
-
-    set({
-      activeTemplateId: contract.templateId,
-      nodes: safeNodes,
-      edges: safeEdges,
-      nodeData: migrateNodeData(contract.nodeData),
-      customCode: safeCode,
+      editorMode: state.editorMode,
     });
-    // Sync counter so newly dragged nodes don't collide with loaded node IDs
-    nodeIdCounter = maxNodeId(safeNodes);
-  },
+    const hasUnsavedChanges = fingerprint !== state.baselineFingerprint;
 
-  deleteContract: (id) => {
-    const updated = get().savedContracts.filter((c) => c.id !== id);
-    persistContracts(updated);
-    set({ savedContracts: updated });
-  },
+    if (hasUnsavedChanges !== state.hasUnsavedChanges) {
+      set({ hasUnsavedChanges });
+    }
+  };
 
-  addNode: (type, position) => {
-    const newNode: Node = {
-      id: `node-${nodeIdCounter++}`,
-      type,
-      position,
-      data: {},
-    };
-    set((state) => ({ nodes: [...state.nodes, newNode] }));
-  },
-}));
+  const applyWorkingMutation = (
+    recipe: (state: FlowState) => Partial<FlowState>
+  ) => {
+    set((state) => recipe(state));
+    syncDirtyState();
+  };
+
+  return {
+    activeTemplateId: initialSnapshot.activeTemplateId,
+    nodes: deepClone(initialSnapshot.nodes),
+    edges: deepClone(initialSnapshot.edges),
+    nodeData: deepClone(initialSnapshot.nodeData),
+    customCode: initialSnapshot.customCode,
+    editorMode: initialSnapshot.editorMode,
+
+    savedContracts: initialSavedContracts,
+    activeSavedContractId: restoredSession?.activeSavedContractId ?? null,
+    hasUnsavedChanges: initialHasUnsavedChanges,
+    lastDraftSavedAt: restoredSession?.updatedAt ?? null,
+    lastNamedSaveAt: restoredSession?.lastNamedSaveAt ?? null,
+    restoredDraftAt:
+      restoredSession && hasMeaningfulWorkingSession(restoredSession)
+        ? restoredSession.updatedAt
+        : null,
+    baselineFingerprint: initialBaselineFingerprint,
+
+    onNodesChange: (changes) => {
+      applyWorkingMutation((state) => ({
+        nodes: applyNodeChanges(changes, state.nodes),
+      }));
+    },
+
+    onEdgesChange: (changes) => {
+      applyWorkingMutation((state) => ({
+        edges: applyEdgeChanges(changes, state.edges),
+      }));
+    },
+
+    onConnect: (connection) => {
+      if (get().activeTemplateId !== CUSTOM_COMPOSE_TEMPLATE_ID) return;
+
+      applyWorkingMutation((state) => ({
+        edges: addEdge({ ...connection, animated: true }, state.edges),
+      }));
+    },
+
+    setContractName: (value) => {
+      applyWorkingMutation((state) => ({
+        nodeData: { ...state.nodeData, contractName: value },
+      }));
+    },
+
+    setUrl: (value) => {
+      applyWorkingMutation((state) => ({
+        nodeData: { ...state.nodeData, url: value },
+      }));
+    },
+
+    setPrompt: (value) => {
+      applyWorkingMutation((state) => ({
+        nodeData: { ...state.nodeData, prompt: value },
+      }));
+    },
+
+    setNumValidators: (value) => {
+      applyWorkingMutation((state) => ({
+        nodeData: { ...state.nodeData, numValidators: value },
+      }));
+    },
+
+    setStorageName: (value) => {
+      applyWorkingMutation((state) => ({
+        nodeData: { ...state.nodeData, storageName: value },
+      }));
+    },
+
+    addStorageField: () => {
+      applyWorkingMutation((state) => ({
+        nodeData: {
+          ...state.nodeData,
+          storageFields: [
+            ...state.nodeData.storageFields,
+            { id: makeId("sf"), name: "", type: "str" },
+          ],
+        },
+      }));
+    },
+
+    updateStorageField: (id, updates) => {
+      applyWorkingMutation((state) => ({
+        nodeData: {
+          ...state.nodeData,
+          storageFields: state.nodeData.storageFields.map((field) =>
+            field.id === id ? { ...field, ...updates } : field
+          ),
+        },
+      }));
+    },
+
+    removeStorageField: (id) => {
+      applyWorkingMutation((state) => ({
+        nodeData: {
+          ...state.nodeData,
+          storageFields: state.nodeData.storageFields.filter(
+            (field) => field.id !== id
+          ),
+        },
+      }));
+    },
+
+    addConstructorArg: () => {
+      applyWorkingMutation((state) => ({
+        nodeData: {
+          ...state.nodeData,
+          constructorArgs: [
+            ...state.nodeData.constructorArgs,
+            { id: makeId("ca"), name: "", type: "str" },
+          ],
+        },
+      }));
+    },
+
+    updateConstructorArg: (id, updates) => {
+      applyWorkingMutation((state) => ({
+        nodeData: {
+          ...state.nodeData,
+          constructorArgs: state.nodeData.constructorArgs.map((arg) =>
+            arg.id === id ? { ...arg, ...updates } : arg
+          ),
+        },
+      }));
+    },
+
+    removeConstructorArg: (id) => {
+      applyWorkingMutation((state) => ({
+        nodeData: {
+          ...state.nodeData,
+          constructorArgs: state.nodeData.constructorArgs.filter(
+            (arg) => arg.id !== id
+          ),
+        },
+      }));
+    },
+
+    switchTemplate: (templateId) => {
+      const template = getTemplate(templateId);
+      if (!template) return;
+
+      const snapshot = createBuilderSnapshotFromTemplate(
+        templateId,
+        get().editorMode
+      );
+      const baselineFingerprint = getBuilderSnapshotFingerprint(snapshot);
+
+      set({
+        activeTemplateId: snapshot.activeTemplateId,
+        nodes: deepClone(snapshot.nodes),
+        edges: deepClone(snapshot.edges),
+        nodeData: deepClone(snapshot.nodeData),
+        customCode: snapshot.customCode,
+        activeSavedContractId: null,
+        hasUnsavedChanges: false,
+        lastNamedSaveAt: null,
+        restoredDraftAt: null,
+        baselineFingerprint,
+      });
+
+      nodeIdCounter = maxNodeId(snapshot.nodes);
+      addBuilderBreadcrumb("template_switched", {
+        templateId,
+        editorMode: get().editorMode,
+      });
+    },
+
+    setEditorMode: (mode) => {
+      applyWorkingMutation(() => ({ editorMode: mode }));
+    },
+
+    setCustomCode: (code) => {
+      applyWorkingMutation(() => ({ customCode: code }));
+    },
+
+    saveContract: (name) => {
+      const state = get();
+      const savedAt = Date.now();
+      const contract: SavedContract = {
+        id: makeId("contract"),
+        schemaVersion: CURRENT_SAVED_CONTRACT_SCHEMA_VERSION,
+        name,
+        templateId: state.activeTemplateId,
+        nodeData: deepClone(state.nodeData),
+        customCode: state.customCode,
+        nodes: deepClone(state.nodes),
+        edges: deepClone(state.edges),
+        savedAt,
+      };
+      const updatedContracts = [...state.savedContracts, contract];
+      const baselineFingerprint = getBuilderSnapshotFingerprint({
+        activeTemplateId: state.activeTemplateId,
+        nodes: state.nodes,
+        edges: state.edges,
+        nodeData: state.nodeData,
+        customCode: state.customCode,
+        editorMode: state.editorMode,
+      });
+
+      persistSavedContracts(updatedContracts);
+      set({
+        savedContracts: updatedContracts,
+        activeSavedContractId: contract.id,
+        hasUnsavedChanges: false,
+        lastNamedSaveAt: savedAt,
+        baselineFingerprint,
+        restoredDraftAt: null,
+      });
+    },
+
+    loadContract: (id) => {
+      const state = get();
+      const contract = state.savedContracts.find((item) => item.id === id);
+      if (!contract) return;
+
+      const template = getTemplate(contract.templateId);
+      if (!template) return;
+
+      const parsedNodes = sanitizeSavedNodes(contract.nodes);
+      const useTemplateNodes = parsedNodes.length === 0;
+      const safeNodes = useTemplateNodes
+        ? deepClone(template.defaultNodes)
+        : deepClone(parsedNodes);
+      const nodeIds = new Set(safeNodes.map((node) => node.id));
+      const parsedEdges = sanitizeSavedEdges(contract.edges, nodeIds);
+      const safeEdges =
+        useTemplateNodes && parsedEdges.length === 0
+          ? deepClone(template.defaultEdges)
+          : deepClone(parsedEdges);
+
+      const snapshot = createBuilderSnapshot({
+        activeTemplateId: contract.templateId,
+        nodeData: contract.nodeData,
+        customCode: sanitizeSavedCustomCode(contract.customCode),
+        nodes: safeNodes,
+        edges: safeEdges,
+        editorMode: state.editorMode,
+      });
+      const baselineFingerprint = getBuilderSnapshotFingerprint(snapshot);
+
+      set({
+        activeTemplateId: snapshot.activeTemplateId,
+        nodes: snapshot.nodes,
+        edges: snapshot.edges,
+        nodeData: snapshot.nodeData,
+        customCode: snapshot.customCode,
+        editorMode: state.editorMode,
+        activeSavedContractId: contract.id,
+        hasUnsavedChanges: false,
+        lastNamedSaveAt: contract.savedAt,
+        restoredDraftAt: null,
+        baselineFingerprint,
+      });
+
+      nodeIdCounter = maxNodeId(snapshot.nodes);
+    },
+
+    deleteContract: (id) => {
+      const state = get();
+      const updatedContracts = state.savedContracts.filter(
+        (contract) => contract.id !== id
+      );
+      const isActive = state.activeSavedContractId === id;
+
+      persistSavedContracts(updatedContracts);
+      set({
+        savedContracts: updatedContracts,
+        activeSavedContractId: isActive ? null : state.activeSavedContractId,
+        lastNamedSaveAt: isActive ? null : state.lastNamedSaveAt,
+      });
+    },
+
+    importProjectDocument: (document) => {
+      const snapshot = buildImportedSnapshot(document, get().editorMode);
+      const baselineFingerprint = getBuilderSnapshotFingerprint(snapshot);
+
+      set({
+        activeTemplateId: snapshot.activeTemplateId,
+        nodes: deepClone(snapshot.nodes),
+        edges: deepClone(snapshot.edges),
+        nodeData: deepClone(snapshot.nodeData),
+        customCode: snapshot.customCode,
+        editorMode: snapshot.editorMode,
+        activeSavedContractId: null,
+        hasUnsavedChanges: false,
+        lastNamedSaveAt: document.metadata.lastNamedSaveAt,
+        restoredDraftAt: null,
+        baselineFingerprint,
+      });
+
+      nodeIdCounter = maxNodeId(snapshot.nodes);
+      addBuilderBreadcrumb("project_document_imported", {
+        templateId: snapshot.activeTemplateId,
+        importedName: document.metadata.name,
+      });
+    },
+
+    addNode: (type, position) => {
+      if (get().activeTemplateId !== CUSTOM_COMPOSE_TEMPLATE_ID) return;
+
+      applyWorkingMutation((state) => ({
+        nodes: [
+          ...state.nodes,
+          {
+            id: `node-${nodeIdCounter++}`,
+            type,
+            position,
+            data: {},
+          },
+        ],
+      }));
+    },
+
+    syncDraftPersistence: (savedAt, hasUnsavedChanges) => {
+      const state = get();
+      if (
+        state.lastDraftSavedAt === savedAt &&
+        state.hasUnsavedChanges === hasUnsavedChanges
+      ) {
+        return;
+      }
+
+      set({
+        lastDraftSavedAt: savedAt,
+        hasUnsavedChanges,
+      });
+    },
+
+    dismissDraftRecoveryNotice: () => {
+      set({ restoredDraftAt: null });
+    },
+  };
+});
+
+export {
+  getBuilderSnapshotFingerprint,
+  migrateNodeData,
+  sanitizeSavedCustomCode,
+  sanitizeSavedEdges,
+  sanitizeSavedNodes,
+} from "@/lib/contractPersistence";

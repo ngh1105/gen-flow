@@ -1,35 +1,40 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
-  X,
-  ArrowRight,
   ArrowLeft,
-  Globe,
+  ArrowRight,
   Brain,
-  Database,
-  Zap,
-  Users,
-  User,
   CheckCircle2,
-  Sparkles,
+  Database,
+  Globe,
   Puzzle,
+  Sparkles,
+  User,
+  Users,
+  X,
+  Zap,
 } from "lucide-react";
+
+import ConfirmationDialog from "@/components/layout/ConfirmationDialog";
+import { useDialogFocusTrap } from "@/hooks/useDialogFocusTrap";
+import { getTemplate } from "@/engine/templateRegistry";
+import { createEmptyNodeData } from "@/lib/contractPersistence";
+import { getBuilderStatus } from "@/lib/exportRequirements";
+import { addBuilderBreadcrumb } from "@/lib/telemetry";
+import {
+  getWizardRecommendation,
+  type WizardAnswers,
+} from "@/lib/wizardRecommendations";
 import { useFlowStore } from "@/store/useFlowStore";
 
 type WizardStep = "goal" | "data" | "consensus" | "result";
-
-interface WizardAnswers {
-  goal: string;
-  dataSource: string;
-  consensus: string;
-}
 
 const GOALS = [
   {
     id: "store",
     label: "Store Data",
-    desc: "Simple on-chain key-value storage",
+    desc: "Simple on-chain state and persistence",
     icon: Database,
     color: "text-foreground",
     bg: "bg-surface",
@@ -38,7 +43,7 @@ const GOALS = [
   {
     id: "analyze",
     label: "Analyze Web Data",
-    desc: "Fetch a URL and process the result",
+    desc: "Review live evidence, oracle signals, or submissions",
     icon: Globe,
     color: "text-foreground",
     bg: "bg-surface",
@@ -47,7 +52,7 @@ const GOALS = [
   {
     id: "ai",
     label: "AI Decision",
-    desc: "Use AI to evaluate, judge, or decide",
+    desc: "AI-backed coordination, moderation, or rulings",
     icon: Brain,
     color: "text-foreground",
     bg: "bg-surface",
@@ -56,7 +61,7 @@ const GOALS = [
   {
     id: "predict",
     label: "Predict Outcomes",
-    desc: "Resolve predictions using real-world data",
+    desc: "Settle markets or benchmark live outcome sources",
     icon: Zap,
     color: "text-foreground",
     bg: "bg-surface",
@@ -65,7 +70,7 @@ const GOALS = [
   {
     id: "custom",
     label: "Something Else",
-    desc: "I'll compose my own from scratch",
+    desc: "Compose your own flow from a blank canvas",
     icon: Puzzle,
     color: "text-foreground",
     bg: "bg-surface",
@@ -110,92 +115,101 @@ const CONSENSUS_TYPES = [
   {
     id: "comparative",
     label: "Comparative",
-    desc: "Key values must match (e.g. true/false, win/lose)",
-    example: 'give_coin: false → all agree on "false"',
+    desc: "Key values must match (for example true or false)",
+    example: "give_coin: false",
   },
   {
     id: "non_comparative",
     label: "Meaning-Based",
     desc: "Results should convey equivalent meaning",
-    example: '"Good analysis" ≈ "Positive review"',
+    example: "Good analysis ~= Positive review",
   },
   {
     id: "none",
     label: "No Consensus Needed",
-    desc: "Simple storage — no AI or web involved",
+    desc: "Simple storage only, with no AI or web input",
     example: "Direct read/write operations",
   },
 ];
-
-function resolveTemplate(answers: WizardAnswers): string {
-  const { goal, dataSource, consensus } = answers;
-
-  // Custom compose
-  if (goal === "custom") return "custom-compose";
-
-  // Simple storage
-  if (goal === "store" && (dataSource === "none" || dataSource === "user")) {
-    return "simple-storage";
-  }
-
-  // Prediction market
-  if (goal === "predict" && (dataSource === "web" || dataSource === "both")) {
-    return "prediction-market";
-  }
-
-  // AI game
-  if (goal === "ai" && dataSource === "user" && consensus === "comparative") {
-    return "ai-game";
-  }
-
-  // Content filter
-  if (goal === "ai" && dataSource === "user") {
-    return "content-filter";
-  }
-
-  // DAO vote
-  if (goal === "ai" && consensus === "non_comparative") {
-    return "dao-vote";
-  }
-
-  // Price oracle
-  if (goal === "analyze" && consensus === "comparative") {
-    return "price-oracle";
-  }
-
-  // AI Arbitrator (default for web + AI combos)
-  if (
-    (goal === "analyze" || goal === "predict") &&
-    (dataSource === "web" || dataSource === "both")
-  ) {
-    return "ai-arbitrator";
-  }
-
-  // Broad AI usage
-  if (goal === "ai") return "ai-arbitrator";
-
-  // Fallback
-  return "custom-compose";
-}
 
 interface WizardOverlayProps {
   open: boolean;
   onClose: () => void;
 }
 
+function getPreviousStep(answers: WizardAnswers): WizardStep {
+  if (answers.consensus && answers.consensus !== "none") return "consensus";
+  if (answers.dataSource && answers.dataSource !== "none") return "data";
+  return "goal";
+}
+
 export default function WizardOverlay({ open, onClose }: WizardOverlayProps) {
-  const switchTemplate = useFlowStore((s) => s.switchTemplate);
+  const switchTemplate = useFlowStore((state) => state.switchTemplate);
+  const hasUnsavedChanges = useFlowStore((state) => state.hasUnsavedChanges);
+  const dialogRef = useDialogFocusTrap({ open, onClose });
   const [step, setStep] = useState<WizardStep>("goal");
   const [answers, setAnswers] = useState<WizardAnswers>({
     goal: "",
     dataSource: "",
     consensus: "",
   });
+  const [pendingTemplateId, setPendingTemplateId] = useState<string | null>(null);
+
+  const closeAndReset = useCallback(() => {
+    setStep("goal");
+    setAnswers({ goal: "", dataSource: "", consensus: "" });
+    setPendingTemplateId(null);
+    onClose();
+  }, [onClose]);
+
+  const executeFinish = (templateId: string) => {
+    addBuilderBreadcrumb("wizard_template_applied", {
+      templateId,
+      hadUnsavedChanges: hasUnsavedChanges,
+    });
+    switchTemplate(templateId);
+    closeAndReset();
+  };
+
+  useEffect(() => {
+    if (!open) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        closeAndReset();
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [closeAndReset, open]);
+
+  const handleFinishRequest = (overrideId?: string) => {
+    const templateId = overrideId || getWizardRecommendation(answers).templateId;
+    if (hasUnsavedChanges) {
+      setPendingTemplateId(templateId);
+      return;
+    }
+    executeFinish(templateId);
+  };
 
   if (!open) return null;
 
   const steps: WizardStep[] = ["goal", "data", "consensus", "result"];
   const currentIndex = steps.indexOf(step);
+  const recommendation = getWizardRecommendation(answers);
+  const recommendedTemplate = getTemplate(recommendation.templateId);
+  const alternativeTemplate = recommendation.alternativeTemplateId
+    ? getTemplate(recommendation.alternativeTemplateId)
+    : undefined;
+  const previewStatus = recommendedTemplate
+    ? getBuilderStatus(createEmptyNodeData(), recommendedTemplate.defaultNodes, {
+        activeTemplateId: recommendedTemplate.id,
+        edges: recommendedTemplate.defaultEdges,
+      })
+    : getBuilderStatus(createEmptyNodeData(), [], {
+        activeTemplateId: "custom-compose",
+      });
 
   const canProceed = () => {
     if (step === "goal") return answers.goal !== "";
@@ -206,122 +220,136 @@ export default function WizardOverlay({ open, onClose }: WizardOverlayProps) {
 
   const handleNext = () => {
     if (step === "goal" && (answers.goal === "store" || answers.goal === "custom")) {
-      // Skip data + consensus for storage
-      if (answers.goal === "custom") {
-        handleFinish("custom-compose");
-        return;
-      }
-      setAnswers((a) => ({ ...a, dataSource: "none", consensus: "none" }));
-      handleFinish("simple-storage");
+      setAnswers((current) => ({
+        ...current,
+        dataSource: "none",
+        consensus: "none",
+      }));
+      setStep("result");
       return;
     }
-    if (step === "goal") { setStep("data"); return; }
+
+    if (step === "goal") {
+      setStep("data");
+      return;
+    }
+
     if (step === "data") {
       if (answers.dataSource === "none") {
-        setAnswers((a) => ({ ...a, consensus: "none" }));
+        setAnswers((current) => ({ ...current, consensus: "none" }));
         setStep("result");
         return;
       }
+
       setStep("consensus");
       return;
     }
-    if (step === "consensus") { setStep("result"); return; }
+
+    if (step === "consensus") {
+      setStep("result");
+    }
   };
 
   const handleBack = () => {
     if (step === "data") setStep("goal");
     if (step === "consensus") setStep("data");
-    if (step === "result") setStep("consensus");
+    if (step === "result") setStep(getPreviousStep(answers));
   };
-
-  const handleFinish = (overrideId?: string) => {
-    const templateId = overrideId || resolveTemplate(answers);
-    switchTemplate(templateId);
-    onClose();
-    // Reset wizard
-    setStep("goal");
-    setAnswers({ goal: "", dataSource: "", consensus: "" });
-  };
-
-  const resolvedTemplate = resolveTemplate(answers);
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center">
-      {/* Backdrop */}
+    <div
+      className="fixed inset-0 z-[100] flex items-center justify-center px-4"
+      data-testid="wizard-overlay"
+    >
       <div
         className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-        onClick={onClose}
+        onClick={closeAndReset}
       />
 
-      {/* Modal */}
-      <div className="relative w-full max-w-lg mx-4 rounded-none border border-border bg-surface shadow-none shadow-none overflow-hidden">
-        {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-border">
+      <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="wizard-title"
+        aria-describedby="wizard-description"
+        tabIndex={-1}
+        className="relative w-full max-w-lg overflow-hidden rounded-none border border-border bg-surface shadow-none outline-none"
+      >
+        <div className="flex items-center justify-between border-b border-border px-6 py-4">
           <div className="flex items-center gap-2">
-            <Sparkles className="w-5 h-5 text-foreground" />
-            <h2 className="text-lg font-bold">Smart Wizard</h2>
+            <Sparkles className="h-5 w-5 text-foreground" />
+            <div>
+              <h2 id="wizard-title" className="text-lg font-bold">
+                Smart Wizard
+              </h2>
+              <p id="wizard-description" className="text-[11px] text-muted">
+                Preview the recommended template before it replaces your current canvas.
+              </p>
+            </div>
           </div>
           <button
-            onClick={onClose}
-            className="flex items-center justify-center w-8 h-8 rounded-none hover:bg-surface-hover transition-all duration-150"
+            onClick={closeAndReset}
+            aria-label="Close Smart Wizard"
+            className="flex h-8 w-8 items-center justify-center rounded-none transition-all duration-150 hover:bg-surface-hover"
           >
-            <X className="w-4 h-4 text-muted" />
+            <X className="h-4 w-4 text-muted" />
           </button>
         </div>
 
-        {/* Progress */}
         <div className="px-6 pt-4">
           <div className="flex items-center gap-1">
-            {steps.map((s, i) => (
+            {steps.map((item, index) => (
               <div
-                key={s}
-                className={`flex-1 h-1 rounded-none transition-all duration-150 ${
-                  i <= currentIndex
-                    ? "bg-foreground"
-                    : "bg-border"
+                key={item}
+                className={`h-1 flex-1 rounded-none transition-all duration-150 ${
+                  index <= currentIndex ? "bg-foreground" : "bg-border"
                 }`}
               />
             ))}
           </div>
-          <p className="text-xs text-muted mt-2">
+          <p className="mt-2 text-xs text-muted">
             Step {currentIndex + 1} of {steps.length}
           </p>
         </div>
 
-        {/* Content */}
-        <div className="px-6 py-5 min-h-[300px]">
+        <div className="min-h-[320px] px-6 py-5">
           {step === "goal" && (
             <>
-              <h3 className="text-base font-display font-medium mb-1">
+              <h3 className="mb-1 text-base font-display font-medium">
                 What do you want your contract to do?
               </h3>
-              <p className="text-xs text-muted mb-4">
-                Pick the main purpose of your Intelligent Contract.
+              <p className="mb-4 text-xs text-muted">
+                Choose the main job. The wizard only applies a template after you confirm.
               </p>
               <div className="space-y-2">
-                {GOALS.map((g) => {
-                  const Icon = g.icon;
-                  const selected = answers.goal === g.id;
+                {GOALS.map((goal) => {
+                  const Icon = goal.icon;
+                  const selected = answers.goal === goal.id;
+
                   return (
                     <button
-                      key={g.id}
-                      onClick={() => setAnswers((a) => ({ ...a, goal: g.id }))}
-                      className={`w-full flex items-center gap-3 px-4 py-3 rounded-none border transition-all duration-150 text-left ${
+                      key={goal.id}
+                      type="button"
+                      onClick={() => setAnswers((current) => ({ ...current, goal: goal.id }))}
+                      data-testid={`wizard-goal-${goal.id}`}
+                      className={`w-full rounded-none border px-4 py-3 text-left transition-all duration-150 ${
                         selected
-                          ? `${g.bg} ${g.border} border`
+                          ? `${goal.bg} border ${goal.border}`
                           : "border-border hover:border-foreground hover:bg-surface-hover"
                       }`}
                     >
-                      <Icon className={`w-5 h-5 shrink-0 ${selected ? g.color : "text-muted"}`} />
-                      <div>
-                        <p className={`text-sm font-medium ${selected ? g.color : ""}`}>
-                          {g.label}
-                        </p>
-                        <p className="text-[11px] text-muted">{g.desc}</p>
+                      <div className="flex items-center gap-3">
+                        <Icon className={`h-5 w-5 shrink-0 ${selected ? goal.color : "text-muted"}`} />
+                        <div>
+                          <p className={`text-sm font-medium ${selected ? goal.color : ""}`}>
+                            {goal.label}
+                          </p>
+                          <p className="text-[11px] text-muted">{goal.desc}</p>
+                        </div>
+                        {selected && (
+                          <CheckCircle2 className={`ml-auto h-4 w-4 shrink-0 ${goal.color}`} />
+                        )}
                       </div>
-                      {selected && (
-                        <CheckCircle2 className={`w-4 h-4 ml-auto shrink-0 ${g.color}`} />
-                      )}
                     </button>
                   );
                 })}
@@ -331,36 +359,45 @@ export default function WizardOverlay({ open, onClose }: WizardOverlayProps) {
 
           {step === "data" && (
             <>
-              <h3 className="text-base font-display font-medium mb-1">
+              <h3 className="mb-1 text-base font-display font-medium">
                 Where does the data come from?
               </h3>
-              <p className="text-xs text-muted mb-4">
-                Choose how your contract gets its input data.
+              <p className="mb-4 text-xs text-muted">
+                This helps GenFlow choose whether your template needs URLs, user input, or both.
               </p>
               <div className="space-y-2">
-                {DATA_SOURCES.map((d) => {
-                  const Icon = d.icon;
-                  const selected = answers.dataSource === d.id;
+                {DATA_SOURCES.map((source) => {
+                  const Icon = source.icon;
+                  const selected = answers.dataSource === source.id;
+
                   return (
                     <button
-                      key={d.id}
-                      onClick={() => setAnswers((a) => ({ ...a, dataSource: d.id }))}
-                      className={`w-full flex items-center gap-3 px-4 py-3 rounded-none border transition-all duration-150 text-left ${
+                      key={source.id}
+                      type="button"
+                      onClick={() =>
+                        setAnswers((current) => ({ ...current, dataSource: source.id }))
+                      }
+                      data-testid={`wizard-data-${source.id}`}
+                      className={`w-full rounded-none border px-4 py-3 text-left transition-all duration-150 ${
                         selected
-                          ? "bg-foreground border-foreground"
+                          ? "border-foreground bg-foreground text-background"
                           : "border-border hover:border-foreground hover:bg-surface-hover"
                       }`}
                     >
-                      <Icon className={`w-5 h-5 shrink-0 ${selected ? "text-foreground" : "text-muted"}`} />
-                      <div>
-                        <p className={`text-sm font-medium ${selected ? "text-foreground" : ""}`}>
-                          {d.label}
-                        </p>
-                        <p className="text-[11px] text-muted">{d.desc}</p>
+                      <div className="flex items-center gap-3">
+                        <Icon className={`h-5 w-5 shrink-0 ${selected ? "text-background" : "text-muted"}`} />
+                        <div>
+                          <p className={`text-sm font-medium ${selected ? "text-background" : ""}`}>
+                            {source.label}
+                          </p>
+                          <p className={`text-[11px] ${selected ? "text-background/70" : "text-muted"}`}>
+                            {source.desc}
+                          </p>
+                        </div>
+                        {selected && (
+                          <CheckCircle2 className="ml-auto h-4 w-4 shrink-0 text-background" />
+                        )}
                       </div>
-                      {selected && (
-                        <CheckCircle2 className="w-4 h-4 ml-auto shrink-0 text-foreground" />
-                      )}
                     </button>
                   );
                 })}
@@ -370,36 +407,46 @@ export default function WizardOverlay({ open, onClose }: WizardOverlayProps) {
 
           {step === "consensus" && (
             <>
-              <h3 className="text-base font-display font-medium mb-1">
+              <h3 className="mb-1 text-base font-display font-medium">
                 How should validators agree?
               </h3>
-              <p className="text-xs text-muted mb-4">
-                Choose the consensus mechanism for non-deterministic results.
+              <p className="mb-4 text-xs text-muted">
+                Choose the consensus style for non-deterministic results.
               </p>
               <div className="space-y-2">
-                {CONSENSUS_TYPES.map((c) => {
-                  const selected = answers.consensus === c.id;
+                {CONSENSUS_TYPES.map((consensus) => {
+                  const selected = answers.consensus === consensus.id;
+
                   return (
                     <button
-                      key={c.id}
-                      onClick={() => setAnswers((a) => ({ ...a, consensus: c.id }))}
-                      className={`w-full px-4 py-3 rounded-none border transition-all duration-150 text-left ${
+                      key={consensus.id}
+                      type="button"
+                      onClick={() =>
+                        setAnswers((current) => ({
+                          ...current,
+                          consensus: consensus.id,
+                        }))
+                      }
+                      data-testid={`wizard-consensus-${consensus.id}`}
+                      className={`w-full rounded-none border px-4 py-3 text-left transition-all duration-150 ${
                         selected
-                          ? "bg-foreground border-foreground"
+                          ? "border-foreground bg-foreground text-background"
                           : "border-border hover:border-foreground hover:bg-surface-hover"
                       }`}
                     >
                       <div className="flex items-center justify-between">
-                        <p className={`text-sm font-medium ${selected ? "text-foreground" : ""}`}>
-                          {c.label}
+                        <p className={`text-sm font-medium ${selected ? "text-background" : ""}`}>
+                          {consensus.label}
                         </p>
                         {selected && (
-                          <CheckCircle2 className="w-4 h-4 shrink-0 text-foreground" />
+                          <CheckCircle2 className="h-4 w-4 shrink-0 text-background" />
                         )}
                       </div>
-                      <p className="text-[11px] text-muted mt-0.5">{c.desc}</p>
-                      <p className="text-[10px] text-muted/60 mt-1 font-mono italic">
-                        e.g. {c.example}
+                      <p className={`mt-0.5 text-[11px] ${selected ? "text-background/70" : "text-muted"}`}>
+                        {consensus.desc}
+                      </p>
+                      <p className={`mt-1 text-[10px] italic font-mono ${selected ? "text-background/50" : "text-muted/60"}`}>
+                        e.g. {consensus.example}
                       </p>
                     </button>
                   );
@@ -410,85 +457,199 @@ export default function WizardOverlay({ open, onClose }: WizardOverlayProps) {
 
           {step === "result" && (
             <>
-              <h3 className="text-base font-display font-medium mb-1">
-                Perfect! Here&apos;s your match
+              <h3 className="mb-1 text-base font-display font-medium">
+                Here&apos;s your recommended starting point
               </h3>
-              <p className="text-xs text-muted mb-5">
-                Based on your answers, we recommend this template:
+              <p className="mb-4 text-xs text-muted">
+                Review the template profile first. Your current canvas stays untouched until you apply it.
               </p>
 
-              <div className="p-5 rounded-none border border-foreground bg-foreground text-center">
-                <div className="inline-flex items-center justify-center w-14 h-14 rounded-none bg-foreground mb-3">
-                  <Sparkles className="w-7 h-7 text-foreground" />
+              <div className="border border-foreground bg-foreground p-5 text-center">
+                <div className="mb-3 inline-flex h-14 w-14 items-center justify-center rounded-none bg-background text-foreground">
+                  <Sparkles className="h-7 w-7" />
                 </div>
-                <p className="text-lg font-bold text-foreground mb-1">
-                  {resolvedTemplate.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}
+                <p className="mb-1 text-lg font-bold text-background">
+                  <span data-testid="wizard-recommendation-name">
+                    {recommendedTemplate?.name ?? "Custom Compose"}
+                  </span>
                 </p>
-                <p className="text-xs text-muted">
-                  Template will be loaded with default nodes and generated code.
+                <p className="mx-auto max-w-sm text-xs text-background/80">
+                  {recommendedTemplate?.description ??
+                    "Start from an open canvas and compose the contract flow block by block."}
+                </p>
+                <div className="mt-3 inline-flex border border-background/20 bg-background/10 px-2 py-1 text-[10px] uppercase tracking-widest text-background">
+                  Confidence: {recommendation.confidence}
+                </div>
+              </div>
+
+              <div className="mt-4 border border-border bg-surface-hover p-3">
+                <p className="mb-2 text-[10px] font-display font-medium uppercase tracking-widest text-muted">
+                  Why this matches
+                </p>
+                <p className="text-xs leading-relaxed text-foreground">
+                  {recommendation.reason}
                 </p>
               </div>
 
-              <div className="mt-4 p-3 rounded-none bg-surface-hover border border-border">
-                <p className="text-[10px] text-muted uppercase tracking-widest font-display font-medium mb-2">
+              {recommendation.caution && (
+                <div className="mt-4 border border-border bg-background p-3">
+                  <p className="mb-2 text-[10px] font-display font-medium uppercase tracking-widest text-muted">
+                    Why not fully certain
+                  </p>
+                  <p className="text-xs leading-relaxed text-foreground">
+                    {recommendation.caution}
+                  </p>
+                </div>
+              )}
+
+              {recommendedTemplate && (
+                <div className="mt-4 border border-border bg-surface-hover p-3">
+                  <p className="mb-2 text-[10px] font-display font-medium uppercase tracking-widest text-muted">
+                    Template profile
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    <span className="border border-border bg-surface px-2 py-1 text-[11px] text-foreground">
+                      {recommendedTemplate.category}
+                    </span>
+                    {recommendedTemplate.tags?.slice(0, 3).map((tag) => (
+                      <span
+                        key={tag}
+                        className="border border-border bg-surface px-2 py-1 text-[11px] text-foreground"
+                      >
+                        {tag}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {alternativeTemplate && recommendation.alternativeReason && (
+                <div className="mt-4 border border-border bg-surface-hover p-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="mb-2 text-[10px] font-display font-medium uppercase tracking-widest text-muted">
+                        Stronger alternative
+                      </p>
+                      <p className="text-sm font-medium text-foreground">
+                        {alternativeTemplate.name}
+                      </p>
+                      <p className="mt-1 text-xs leading-relaxed text-muted">
+                        {recommendation.alternativeReason}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleFinishRequest(alternativeTemplate.id)}
+                      data-testid="wizard-apply-alternative"
+                      className="shrink-0 border border-border bg-background px-3 py-1.5 text-[11px] font-medium text-foreground transition-all duration-150 hover:bg-surface"
+                    >
+                      Apply Alternative
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              <div className="mt-4 border border-border bg-surface-hover p-3">
+                <p className="mb-2 text-[10px] font-display font-medium uppercase tracking-widest text-muted">
+                  Export requirements
+                </p>
+                <p className="mb-2 text-xs text-muted">
+                  The same checklist used in the builder will ask for these items first:
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {previewStatus.requirements
+                    .filter((requirement) => requirement.required)
+                    .map((requirement) => (
+                      <span
+                        key={requirement.id}
+                        className="border border-border bg-surface px-2 py-1 text-[11px] text-foreground"
+                      >
+                        {requirement.label}
+                      </span>
+                    ))}
+                </div>
+              </div>
+
+              <div className="mt-4 border border-border bg-surface-hover p-3">
+                <p className="mb-2 text-[10px] font-display font-medium uppercase tracking-widest text-muted">
                   Your choices
                 </p>
                 <div className="flex flex-wrap gap-2">
                   {answers.goal && (
-                    <span className="text-[11px] px-2 py-1 rounded-none bg-surface text-foreground border border-border">
-                      {GOALS.find((g) => g.id === answers.goal)?.label}
+                    <span className="border border-border bg-surface px-2 py-1 text-[11px] text-foreground">
+                      {GOALS.find((goal) => goal.id === answers.goal)?.label}
                     </span>
                   )}
                   {answers.dataSource && answers.dataSource !== "none" && (
-                    <span className="text-[11px] px-2 py-1 rounded-none bg-surface text-foreground border border-border">
-                      {DATA_SOURCES.find((d) => d.id === answers.dataSource)?.label}
+                    <span className="border border-border bg-surface px-2 py-1 text-[11px] text-foreground">
+                      {DATA_SOURCES.find((source) => source.id === answers.dataSource)?.label}
                     </span>
                   )}
                   {answers.consensus && answers.consensus !== "none" && (
-                    <span className="text-[11px] px-2 py-1 rounded-none bg-surface text-foreground border border-border">
-                      {CONSENSUS_TYPES.find((c) => c.id === answers.consensus)?.label}
+                    <span className="border border-border bg-surface px-2 py-1 text-[11px] text-foreground">
+                      {CONSENSUS_TYPES.find((consensus) => consensus.id === answers.consensus)?.label}
                     </span>
                   )}
                 </div>
               </div>
+
+              {hasUnsavedChanges && (
+                <div className="mt-4 border border-border bg-background px-3 py-2 text-xs text-muted">
+                  Applying this template replaces the current canvas view. Your in-progress draft
+                  is autosaved separately and can still be recovered in this browser.
+                </div>
+              )}
             </>
           )}
         </div>
 
-        {/* Footer */}
-        <div className="flex items-center justify-between px-6 py-4 border-t border-border">
+        <div className="flex items-center justify-between border-t border-border px-6 py-4">
           <button
-            onClick={currentIndex > 0 ? handleBack : onClose}
-            className="flex items-center gap-1.5 px-4 py-2 rounded-none text-sm text-muted hover:text-foreground hover:bg-surface-hover transition-all duration-150"
+            onClick={currentIndex > 0 ? handleBack : closeAndReset}
+            className="flex items-center gap-1.5 rounded-none px-4 py-2 text-sm text-muted transition-all duration-150 hover:bg-surface-hover hover:text-foreground"
           >
-            <ArrowLeft className="w-3.5 h-3.5" />
+            <ArrowLeft className="h-3.5 w-3.5" />
             {currentIndex > 0 ? "Back" : "Cancel"}
           </button>
 
           {step === "result" ? (
             <button
-              onClick={() => handleFinish()}
-              className="flex items-center gap-1.5 px-5 py-2.5 rounded-none bg-foreground text-background text-sm font-display font-medium hover:opacity-90 transition-all duration-150"
+              onClick={() => handleFinishRequest()}
+              data-testid="wizard-start-building"
+              className="flex items-center gap-1.5 rounded-none bg-foreground px-5 py-2.5 text-sm font-display font-medium text-background transition-all duration-150 hover:opacity-90"
             >
-              <Sparkles className="w-4 h-4" />
-              Start Building
+              <Sparkles className="h-4 w-4" />
+              Apply Template
             </button>
           ) : (
             <button
               onClick={handleNext}
               disabled={!canProceed()}
-              className={`flex items-center gap-1.5 px-5 py-2.5 rounded-none text-sm font-display font-medium transition-all duration-150 ${
+              data-testid="wizard-next-button"
+              className={`flex items-center gap-1.5 rounded-none px-5 py-2.5 text-sm font-display font-medium transition-all duration-150 ${
                 canProceed()
-                  ? "bg-foreground text-background hover:opacity-90 active:scale-[0.98] hover:bg-foreground border border-foreground"
-                  : "bg-border text-muted cursor-not-allowed"
+                  ? "border border-foreground bg-foreground text-background hover:bg-foreground hover:opacity-90"
+                  : "cursor-not-allowed bg-border text-muted"
               }`}
             >
               Next
-              <ArrowRight className="w-3.5 h-3.5" />
+              <ArrowRight className="h-3.5 w-3.5" />
             </button>
           )}
         </div>
       </div>
+
+      <ConfirmationDialog
+        open={pendingTemplateId !== null}
+        title="Replace current draft?"
+        description="Applying this wizard result replaces the current canvas layout. Your latest draft is autosaved in this browser, but the current view will switch immediately."
+        confirmLabel="Apply Template"
+        onClose={() => setPendingTemplateId(null)}
+        onConfirm={() => {
+          if (!pendingTemplateId) return;
+          executeFinish(pendingTemplateId);
+        }}
+      />
     </div>
   );
 }

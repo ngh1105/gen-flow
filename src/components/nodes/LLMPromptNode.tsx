@@ -44,6 +44,7 @@ export default function LLMPromptNode() {
             onChange={(e) => setPrompt(e.target.value)}
             placeholder="Analyze this data and summarize the key findings..."
             rows={3}
+            data-testid="prompt-input"
             className="w-full px-3 py-2 text-sm bg-background border border-border rounded-none text-foreground placeholder:text-muted/50 focus:outline-none focus:border-foreground focus:ring-1 focus:ring-foreground/20 transition-all duration-150 resize-none leading-relaxed"
           />
           {isEmpty && (
@@ -83,6 +84,12 @@ export default function LLMPromptNode() {
           </div>
         </div>
       </div>
+
+      <Handle
+        type="source"
+        position={Position.Bottom}
+        className="!w-3 !h-3"
+      />
     </div>
   );
 }

@@ -38,6 +38,7 @@ export default function WebFetchNode() {
           value={url}
           onChange={(e) => setUrl(e.target.value)}
           placeholder="https://example.com/data"
+          data-testid="url-input"
           className="w-full px-3 py-2 text-sm bg-background border border-border rounded-none text-foreground placeholder:text-muted/50 focus:outline-none focus:border-foreground focus:ring-1 focus:ring-foreground/20 transition-all duration-150 font-mono text-xs"
         />
         {isEmpty && (

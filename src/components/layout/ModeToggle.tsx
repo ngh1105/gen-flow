@@ -12,6 +12,7 @@ export default function ModeToggle() {
       <button
         onClick={() => setEditorMode("visual")}
         data-testid="mode-toggle-visual"
+        aria-label="Switch to visual builder mode"
         className={`flex items-center gap-1.5 px-2.5 py-1 rounded-none text-xs font-medium transition-all duration-150 ${
           editorMode === "visual"
             ? "bg-foreground text-background hover:opacity-90 active:scale-[0.98] border border-foreground shadow-sm"
@@ -24,6 +25,7 @@ export default function ModeToggle() {
       <button
         onClick={() => setEditorMode("code")}
         data-testid="mode-toggle-code"
+        aria-label="Switch to code editor mode"
         className={`flex items-center gap-1.5 px-2.5 py-1 rounded-none text-xs font-medium transition-all duration-150 ${
           editorMode === "code"
             ? "bg-foreground text-background hover:opacity-90 active:scale-[0.98] border border-foreground shadow-sm"

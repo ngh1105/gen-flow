@@ -1,6 +1,6 @@
 import { defineConfig, devices } from "@playwright/test";
 
-const port = 3000;
+const port = 3101;
 const baseURL = `http://localhost:${port}`;
 
 export default defineConfig({
@@ -32,9 +32,11 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: process.env.CI ? "npm run start" : "npm run dev",
+    command: process.env.CI
+      ? `npx serve out -l ${port}`
+      : `npx next dev -p ${port}`,
     url: baseURL,
     timeout: 180_000,
-    reuseExistingServer: !process.env.CI,
+    reuseExistingServer: false,
   },
 });

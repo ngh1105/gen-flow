@@ -7,8 +7,12 @@ This project is fully client-side (no backend) and currently at release-candidat
 
 ## What You Get
 
-- 8 built-in templates:
+- 12 built-in templates:
   - AI Arbitrator
+  - AI Governance
+  - Future of Work
+  - Onchain Justice
+  - Oracle Benchmark
   - DAO Vote
   - Price Oracle
   - Content Filter
@@ -19,11 +23,17 @@ This project is fully client-side (no backend) and currently at release-candidat
 - 16 node types in the canvas (Init, Web Fetch, LLM, Storage, Payable, Contract Call, Event Emit, DynArray, TreeMap, HTTP, Access Control, Consensus, VecDB, EVM Bridge, and more)
 - Two working modes:
   - Visual mode (React Flow drag/drop builder)
-  - Code mode (editable Monaco with snippet insertions)
+  - Code mode (editable Monaco with contextual snippet insertions and preflight guidance)
 - Real-time Python code generation
+- Shared Flow Health engine with:
+  - graph-health issues and recommendations
+  - next-best-step quick actions
+  - sidebar badges for missing or suggested nodes
 - Built-in GenVM linter panel with diagnostics and quick-fix metadata
 - Local contract manager (save/load/delete in browser localStorage)
-- Wizard-based template recommendation flow
+- Wizard-based template recommendation flow with confidence, caution, and alternative preset guidance
+- Versioned project JSON export/import for portable builder state
+- Client-side behavior preview showing mocked execution, expected inputs, methods, and dependencies
 
 ## Routes
 
@@ -32,6 +42,18 @@ This project is fully client-side (no backend) and currently at release-candidat
 - `/builder` - main builder UI
 
 Note: the builder is desktop-first. A screen width under `1024px` is blocked by `ResponsiveWarning`.
+
+## Beta Notes
+
+- Builder editing is supported on desktop-width screens (`1024px+`).
+- GenFlow now keeps two local browser records:
+  - `genflow-contracts` for named saves you create in **My Contracts**
+  - `genflow-working-session` for the autosaved in-progress draft
+- Portable project export/import uses versioned `genflow-project` JSON files from **My Contracts**.
+- Flow Health guidance is advisory: it helps explain weak or incomplete graphs, but it does not replace contract review or runtime validation.
+- Behavior Preview is a mocked client-side walkthrough, not real GenLayer execution or chain validation.
+- Reload and crash recovery restore the autosaved draft from the same browser profile.
+- If local browser data becomes corrupted, clear the affected keys in DevTools storage and reopen the builder.
 
 ## Tech Stack
 
@@ -119,11 +141,11 @@ Then open the local URL printed by `serve`.
 
 ## Current Quality Gates (Local Check)
 
-Checked on March 22, 2026:
+Checked on March 23, 2026:
 
 - `npm run build` -> pass
-- `npm test` -> pass (`39` tests)
-- `npm run test:e2e` -> pass (`5` Playwright smoke tests)
+- `npm test` -> pass (`73` tests)
+- `npm run test:e2e` -> pass (`21` Playwright smoke tests)
 - `npm run lint` -> pass
 - `npm audit --omit=dev --json` -> pass (`0` vulnerabilities)
 
@@ -170,9 +192,18 @@ See [`.env.example`](/.env.example) for all variables.
 All user data is stored in browser localStorage:
 
 - `genflow-contracts` - saved contracts
-- `genflow-welcome-dismissed-v2` - welcome overlay dismissed state
+- `genflow-working-session` - autosaved current draft and recovery metadata
+- `genflow-welcome-dismissed-v3` - onboarding dismissed state
 
-No backend persistence, auth, or sync is included in MVP.
+Portable sharing between browsers or machines is handled through exported project JSON files, not backend sync.
+
+No backend persistence, auth, or cloud sync is included in MVP.
+
+## Supported Browsers
+
+- Latest Chrome / Edge desktop: primary target
+- Latest Firefox desktop: expected to work for core flows
+- Mobile browsers: learn/landing routes are usable, but builder editing remains unsupported
 
 ## Production Hardening Checklist
 
