@@ -1,7 +1,7 @@
 # GenFlow
 
-GenFlow is a visual builder for GenLayer Intelligent Contracts.
-You drag nodes, connect logic, and generate Python contract code in real time.
+GenFlow is a chat-first, no-code builder for GenLayer Intelligent Contracts.
+Most users describe the contract idea in natural language, let GenFlow prepare the first draft, review the generated assumptions, preview the user flow, and export Python without touching code or canvas controls.
 
 This project is fully client-side (no backend) and currently at release-candidate stage (`v1.0.0-rc.0`).
 
@@ -22,13 +22,15 @@ This project is fully client-side (no backend) and currently at release-candidat
   - Custom Compose
 - 16 node types in the canvas (Init, Web Fetch, LLM, Storage, Payable, Contract Call, Event Emit, DynArray, TreeMap, HTTP, Access Control, Consensus, VecDB, EVM Bridge, and more)
 - Two working modes:
-  - Visual mode (React Flow drag/drop builder)
-  - Code mode (editable Monaco with contextual snippet insertions and preflight guidance)
+  - Chat-first guided mode (idea -> draft review -> preview -> export)
+  - Advanced developer tools (read-only template canvas, Custom Compose, and advanced code for technical users)
 - Real-time Python code generation
 - Shared Flow Health engine with:
   - graph-health issues and recommendations
   - next-best-step quick actions
   - sidebar badges for missing or suggested nodes
+- Chat-first idea workspace that turns a plain-language brief into a draft review before the guided form appears
+- Guided setup workspace for post-chat review so no-code users can confirm fields without opening canvas or code views
 - Built-in GenVM linter panel with diagnostics and quick-fix metadata
 - Local contract manager (save/load/delete in browser localStorage)
 - Wizard-based template recommendation flow with confidence, caution, and alternative preset guidance
@@ -46,6 +48,10 @@ Note: the builder is desktop-first. A screen width under `1024px` is blocked by 
 ## Beta Notes
 
 - Builder editing is supported on desktop-width screens (`1024px+`).
+- Builder opens in a chat-first idea workspace by default.
+- Template mode hides the canvas by default; the main review surface is a guided form workspace.
+- Preview review is required before export in the guided template flow. Editing the draft after review requires opening Preview again.
+- Conversational refinements can update the current draft and will require preview review again before export.
 - GenFlow now keeps two local browser records:
   - `genflow-contracts` for named saves you create in **My Contracts**
   - `genflow-working-session` for the autosaved in-progress draft

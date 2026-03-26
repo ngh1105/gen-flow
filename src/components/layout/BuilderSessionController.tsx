@@ -21,6 +21,15 @@ export default function BuilderSessionController() {
   const baselineFingerprint = useFlowStore((state) => state.baselineFingerprint);
   const activeSavedContractId = useFlowStore((state) => state.activeSavedContractId);
   const lastNamedSaveAt = useFlowStore((state) => state.lastNamedSaveAt);
+  const builderSurface = useFlowStore((state) => state.builderSurface);
+  const guidedEntryStep = useFlowStore((state) => state.guidedEntryStep);
+  const previewReviewFingerprint = useFlowStore(
+    (state) => state.previewReviewFingerprint
+  );
+  const chatMessages = useFlowStore((state) => state.chatMessages);
+  const draftSummary = useFlowStore((state) => state.draftSummary);
+  const draftAssumptions = useFlowStore((state) => state.draftAssumptions);
+  const lastIntentConfidence = useFlowStore((state) => state.lastIntentConfidence);
   const restoredDraftAt = useFlowStore((state) => state.restoredDraftAt);
   const syncDraftPersistence = useFlowStore((state) => state.syncDraftPersistence);
   const reportedRestoredDraftAtRef = useRef<number | null>(null);
@@ -52,6 +61,13 @@ export default function BuilderSessionController() {
         baselineFingerprint,
         activeSavedContractId,
         lastNamedSaveAt,
+        builderSurface,
+        guidedEntryStep,
+        previewReviewFingerprint,
+        chatMessages,
+        draftSummary,
+        draftAssumptions,
+        lastIntentConfidence,
       });
 
       const hasUnsavedChanges =
@@ -66,7 +82,14 @@ export default function BuilderSessionController() {
     snapshot,
     baselineFingerprint,
     activeSavedContractId,
+    builderSurface,
+    chatMessages,
+    draftAssumptions,
+    draftSummary,
+    guidedEntryStep,
+    lastIntentConfidence,
     lastNamedSaveAt,
+    previewReviewFingerprint,
     syncDraftPersistence,
   ]);
 

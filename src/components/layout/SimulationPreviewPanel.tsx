@@ -22,6 +22,7 @@ export default function SimulationPreviewPanel({
   const nodes = useFlowStore((state) => state.nodes);
   const edges = useFlowStore((state) => state.edges);
   const customCode = useFlowStore((state) => state.customCode);
+  const markPreviewReviewed = useFlowStore((state) => state.markPreviewReviewed);
   const dialogRef = useDialogFocusTrap({ open, onClose });
   const scenario = useMemo(
     () =>
@@ -38,12 +39,13 @@ export default function SimulationPreviewPanel({
   useEffect(() => {
     if (!open) return;
 
+    markPreviewReviewed();
     captureBuilderEvent("simulation_preview_opened", {
       templateId: activeTemplateId,
       nodeCount: nodes.length,
       inputCount: scenario.inputs.length,
     });
-  }, [activeTemplateId, nodes.length, open, scenario.inputs]);
+  }, [activeTemplateId, markPreviewReviewed, nodes.length, open, scenario.inputs]);
 
   if (!open) return null;
 
@@ -75,7 +77,7 @@ export default function SimulationPreviewPanel({
                 Behavior Preview
               </h2>
               <p className="text-[11px] text-muted">
-                Client-side walkthrough of what the current graph expects and exposes. This does not execute GenLayer code.
+                Review what people will provide, what outside information the contract uses, and what result it returns. This is a client-side preview, not live execution.
               </p>
             </div>
           </div>
@@ -93,7 +95,7 @@ export default function SimulationPreviewPanel({
           <div className="overflow-y-auto border-r border-border bg-background/60">
             <div className="border-b border-border px-6 py-4">
               <p className="text-[10px] font-display font-medium uppercase tracking-widest text-muted">
-                Sample Inputs
+                What People Provide
               </p>
               <p className="mt-1 text-xs text-foreground">{scenario.title}</p>
               <p className="mt-1 text-[11px] leading-relaxed text-muted">
@@ -130,7 +132,7 @@ export default function SimulationPreviewPanel({
                       />
                     )}
                     <span className="mt-1 block text-[10px] text-muted">
-                      {input.required ? "Required in the current flow" : "Optional simulation input"}
+                      {input.required ? "Required for this draft" : "Optional preview input"}
                     </span>
                   </label>
                 ))
@@ -141,10 +143,10 @@ export default function SimulationPreviewPanel({
           <div className="overflow-y-auto">
             <div className="border-b border-border px-6 py-4">
               <p className="text-[10px] font-display font-medium uppercase tracking-widest text-muted">
-                Mocked Execution
+                What The Contract Does
               </p>
               <p className="mt-1 text-[11px] leading-relaxed text-muted">
-                The walkthrough below shows what each node contributes to the contract. It is a product preview, not runtime validation.
+                The walkthrough below explains the contract behavior step by step. It helps you review the draft before export and does not validate runtime behavior.
               </p>
             </div>
 

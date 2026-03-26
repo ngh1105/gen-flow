@@ -1,21 +1,13 @@
 "use client";
 
 import { useState, useSyncExternalStore } from "react";
-import {
-  ArrowRight,
-  Blocks,
-  CheckCircle2,
-  Code2,
-  FolderOpen,
-  Layers,
-  MousePointerClick,
-  Sparkles,
-  X,
-} from "lucide-react";
+import { ArrowRight, Blocks, CheckCircle2, FolderOpen, MessageSquareText, Sparkles, X } from "lucide-react";
 import { getAllTemplates } from "@/engine/templateRegistry";
 import { useDialogFocusTrap } from "@/hooks/useDialogFocusTrap";
-
-const WELCOME_DISMISSED_KEY = "genflow-welcome-dismissed-v3";
+import {
+  WELCOME_DISMISSED_KEY,
+  WIZARD_AUTO_OPEN_KEY,
+} from "@/lib/builderUiKeys";
 
 interface WelcomeOverlayProps {
   onOpenWizard?: () => void;
@@ -38,6 +30,7 @@ export default function WelcomeOverlay({ onOpenWizard }: WelcomeOverlayProps) {
   const handleDismiss = () => {
     setDismissed(true);
     localStorage.setItem(WELCOME_DISMISSED_KEY, "true");
+    localStorage.setItem(WIZARD_AUTO_OPEN_KEY, "true");
   };
 
   const handleOpenWizard = () => {
@@ -85,14 +78,15 @@ export default function WelcomeOverlay({ onOpenWizard }: WelcomeOverlayProps) {
                 GEN<span className="text-muted-foreground">FLOW</span>
               </h2>
               <p className="text-[11px] text-muted font-mono uppercase tracking-widest mt-1">
-                Beta Onboarding // First Export
+                Beta Onboarding // No-Code First
               </p>
               <p
                 id="welcome-overlay-description"
                 className="mt-3 max-w-md text-sm leading-relaxed text-muted"
               >
-                Start with one successful export. GenFlow keeps an autosaved draft
-                in this browser, so you can safely come back and continue.
+                Start by describing what you want to build. GenFlow will turn your
+                idea into a first contract draft, then guide you through review,
+                preview, and export.
               </p>
             </div>
           </div>
@@ -105,32 +99,32 @@ export default function WelcomeOverlay({ onOpenWizard }: WelcomeOverlayProps) {
                 numColor: "text-background",
                 numBg: "bg-foreground",
                 iconColor: "text-foreground",
-                icon: Sparkles,
-                text: "Use Smart Wizard or pick a featured template to start from a working flow",
+                icon: MessageSquareText,
+                text: "Describe the contract idea in plain language instead of choosing blocks or code first",
               },
               {
                 step: "2",
                 numColor: "text-foreground",
                 numBg: "bg-surface border border-foreground text-foreground",
                 iconColor: "text-foreground/70",
-                icon: MousePointerClick,
-                text: "Fill the required inputs on the active nodes. Custom Compose still supports drag or click Add",
+                icon: Sparkles,
+                text: "Let GenFlow prepare a draft with a contract type, key fields, and a short summary of assumptions",
               },
               {
                 step: "3",
                 numColor: "text-foreground",
                 numBg: "bg-surface border border-foreground text-foreground",
                 iconColor: "text-foreground/70",
-                icon: Code2,
-                text: "Watch the export checklist until every required badge says done",
+                icon: CheckCircle2,
+                text: "Review the draft, confirm missing details, and open Preview to check what users will see",
               },
               {
                 step: "4",
                 numColor: "text-foreground",
                 numBg: "bg-surface border border-foreground text-foreground",
                 iconColor: "text-foreground/70",
-                icon: CheckCircle2,
-                text: "Save a named version when you want a milestone, then export or continue in Code Mode",
+                icon: FolderOpen,
+                text: "Save a named version when you want a milestone, then export. Developer tools stay optional and hidden",
               },
             ].map((item) => {
               const Icon = item.icon;
@@ -177,7 +171,7 @@ export default function WelcomeOverlay({ onOpenWizard }: WelcomeOverlayProps) {
             >
               <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-200 ease-out" />
               <span className="relative z-10 flex items-center gap-2">
-                Start With Wizard
+                Open Smart Wizard
                 <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
               </span>
             </button>
@@ -185,8 +179,8 @@ export default function WelcomeOverlay({ onOpenWizard }: WelcomeOverlayProps) {
               onClick={handleDismiss}
               className="flex items-center justify-center gap-2 px-5 py-3.5 rounded-none border border-border bg-background text-sm font-display font-bold uppercase tracking-wider text-foreground transition-all duration-150 hover:border-foreground hover:bg-surface-hover"
             >
-              Skip To Canvas
-              <Layers className="w-4 h-4" />
+              Start With An Idea
+              <MessageSquareText className="w-4 h-4" />
             </button>
           </div>
 

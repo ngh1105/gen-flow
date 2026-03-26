@@ -17,6 +17,7 @@ import {
   createBuilderSnapshot,
   createBuilderSnapshotFromTemplate,
   getBuilderSnapshotFingerprint,
+  getPreviewReviewFingerprint,
   hasMeaningfulWorkingSession,
   loadSavedContracts,
   loadWorkingSession,
@@ -29,6 +30,7 @@ import {
   buildImportedSnapshot,
   type ProjectDocument,
 } from "@/lib/projectDocument";
+import type { IntentConfidence, IntentDraftResult } from "@/lib/intentDraft";
 import { getDefaultTemplate, getTemplate } from "@/engine/templateRegistry";
 import { addBuilderBreadcrumb } from "@/lib/telemetry";
 
@@ -55,6 +57,14 @@ export interface NodeData {
 }
 
 export type EditorMode = "visual" | "code";
+export type BuilderSurface = "guided" | "advanced";
+export type GuidedEntryStep = "idea" | "review";
+
+export interface ChatMessage {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+}
 
 export interface BuilderSnapshot {
   activeTemplateId: string;
@@ -83,16 +93,31 @@ export interface WorkingSession extends BuilderSnapshot {
   baselineFingerprint: string;
   activeSavedContractId: string | null;
   lastNamedSaveAt: number | null;
+  builderSurface: BuilderSurface;
+  guidedEntryStep: GuidedEntryStep;
+  previewReviewFingerprint: string | null;
+  chatMessages: ChatMessage[];
+  draftSummary: string | null;
+  draftAssumptions: string[];
+  lastIntentConfidence: IntentConfidence | null;
 }
 
 interface FlowState extends BuilderSnapshot {
+  builderSurface: BuilderSurface;
+  guidedEntryStep: GuidedEntryStep;
   savedContracts: SavedContract[];
   activeSavedContractId: string | null;
   hasUnsavedChanges: boolean;
+  hasReviewedPreviewForCurrentDraft: boolean;
+  previewReviewFingerprint: string | null;
   lastDraftSavedAt: number | null;
   lastNamedSaveAt: number | null;
   restoredDraftAt: number | null;
   baselineFingerprint: string;
+  chatMessages: ChatMessage[];
+  draftSummary: string | null;
+  draftAssumptions: string[];
+  lastIntentConfidence: IntentConfidence | null;
 
   onNodesChange: OnNodesChange;
   onEdgesChange: OnEdgesChange;
@@ -114,7 +139,12 @@ interface FlowState extends BuilderSnapshot {
 
   switchTemplate: (templateId: string) => void;
   setEditorMode: (mode: EditorMode) => void;
+  setBuilderSurface: (surface: BuilderSurface) => void;
+  setGuidedEntryStep: (step: GuidedEntryStep) => void;
   setCustomCode: (code: string) => void;
+  markPreviewReviewed: () => void;
+  applyIntentDraft: (result: IntentDraftResult, requestContent: string) => void;
+  clearIntentDraftState: () => void;
 
   saveContract: (name: string) => void;
   loadContract: (id: string) => void;
@@ -140,6 +170,28 @@ const initialBaselineFingerprint =
   getBuilderSnapshotFingerprint(initialSnapshot);
 const initialHasUnsavedChanges =
   getBuilderSnapshotFingerprint(initialSnapshot) !== initialBaselineFingerprint;
+const initialBuilderSurface: BuilderSurface =
+  restoredSession?.builderSurface ??
+  (initialSnapshot.activeTemplateId === CUSTOM_COMPOSE_TEMPLATE_ID ||
+  initialSnapshot.editorMode === "code"
+    ? "advanced"
+    : "guided");
+const initialGuidedEntryStep: GuidedEntryStep =
+  restoredSession && hasMeaningfulWorkingSession(restoredSession)
+    ? "review"
+    : "idea";
+const initialPreviewReviewFingerprint =
+  restoredSession?.previewReviewFingerprint ?? null;
+const initialHasReviewedPreviewForCurrentDraft =
+  initialPreviewReviewFingerprint !== null &&
+  initialPreviewReviewFingerprint ===
+    getPreviewReviewFingerprint({
+      activeTemplateId: initialSnapshot.activeTemplateId,
+      nodes: initialSnapshot.nodes,
+      edges: initialSnapshot.edges,
+      nodeData: initialSnapshot.nodeData,
+      customCode: initialSnapshot.customCode,
+    });
 
 function deepClone<T>(value: T): T {
   if (typeof globalThis.structuredClone === "function") {
@@ -176,18 +228,42 @@ let nodeIdCounter = maxNodeId(initialSnapshot.nodes);
 export const useFlowStore = create<FlowState>((set, get) => {
   const syncDirtyState = () => {
     const state = get();
-    const fingerprint = getBuilderSnapshotFingerprint({
+    const snapshot = {
       activeTemplateId: state.activeTemplateId,
       nodes: state.nodes,
       edges: state.edges,
       nodeData: state.nodeData,
       customCode: state.customCode,
       editorMode: state.editorMode,
-    });
+    };
+    const fingerprint = getBuilderSnapshotFingerprint(snapshot);
+    const previewFingerprint = getPreviewReviewFingerprint(snapshot);
     const hasUnsavedChanges = fingerprint !== state.baselineFingerprint;
+    const hasReviewedPreviewForCurrentDraft =
+      state.previewReviewFingerprint === previewFingerprint;
+    const nextPreviewReviewFingerprint = hasReviewedPreviewForCurrentDraft
+      ? state.previewReviewFingerprint
+      : null;
+    const updates: Partial<FlowState> = {};
 
     if (hasUnsavedChanges !== state.hasUnsavedChanges) {
-      set({ hasUnsavedChanges });
+      updates.hasUnsavedChanges = hasUnsavedChanges;
+    }
+
+    if (
+      hasReviewedPreviewForCurrentDraft !==
+      state.hasReviewedPreviewForCurrentDraft
+    ) {
+      updates.hasReviewedPreviewForCurrentDraft =
+        hasReviewedPreviewForCurrentDraft;
+    }
+
+    if (nextPreviewReviewFingerprint !== state.previewReviewFingerprint) {
+      updates.previewReviewFingerprint = nextPreviewReviewFingerprint;
+    }
+
+    if (Object.keys(updates).length > 0) {
+      set(updates);
     }
   };
 
@@ -205,10 +281,16 @@ export const useFlowStore = create<FlowState>((set, get) => {
     nodeData: deepClone(initialSnapshot.nodeData),
     customCode: initialSnapshot.customCode,
     editorMode: initialSnapshot.editorMode,
+    builderSurface: initialBuilderSurface,
+    guidedEntryStep: restoredSession?.guidedEntryStep ?? initialGuidedEntryStep,
 
     savedContracts: initialSavedContracts,
     activeSavedContractId: restoredSession?.activeSavedContractId ?? null,
     hasUnsavedChanges: initialHasUnsavedChanges,
+    hasReviewedPreviewForCurrentDraft: initialHasReviewedPreviewForCurrentDraft,
+    previewReviewFingerprint: initialHasReviewedPreviewForCurrentDraft
+      ? initialPreviewReviewFingerprint
+      : null,
     lastDraftSavedAt: restoredSession?.updatedAt ?? null,
     lastNamedSaveAt: restoredSession?.lastNamedSaveAt ?? null,
     restoredDraftAt:
@@ -216,6 +298,10 @@ export const useFlowStore = create<FlowState>((set, get) => {
         ? restoredSession.updatedAt
         : null,
     baselineFingerprint: initialBaselineFingerprint,
+    chatMessages: restoredSession?.chatMessages ?? [],
+    draftSummary: restoredSession?.draftSummary ?? null,
+    draftAssumptions: restoredSession?.draftAssumptions ?? [],
+    lastIntentConfidence: restoredSession?.lastIntentConfidence ?? null,
 
     onNodesChange: (changes) => {
       applyWorkingMutation((state) => ({
@@ -353,9 +439,19 @@ export const useFlowStore = create<FlowState>((set, get) => {
         customCode: snapshot.customCode,
         activeSavedContractId: null,
         hasUnsavedChanges: false,
+        hasReviewedPreviewForCurrentDraft: false,
+        previewReviewFingerprint: null,
         lastNamedSaveAt: null,
         restoredDraftAt: null,
+        builderSurface:
+          templateId === CUSTOM_COMPOSE_TEMPLATE_ID ? "advanced" : "guided",
+        guidedEntryStep:
+          templateId === CUSTOM_COMPOSE_TEMPLATE_ID ? "review" : "review",
         baselineFingerprint,
+        chatMessages: [],
+        draftSummary: null,
+        draftAssumptions: [],
+        lastIntentConfidence: null,
       });
 
       nodeIdCounter = maxNodeId(snapshot.nodes);
@@ -366,11 +462,123 @@ export const useFlowStore = create<FlowState>((set, get) => {
     },
 
     setEditorMode: (mode) => {
-      applyWorkingMutation(() => ({ editorMode: mode }));
+      applyWorkingMutation((state) => ({
+        editorMode: mode,
+        builderSurface:
+          mode === "code" || state.activeTemplateId === CUSTOM_COMPOSE_TEMPLATE_ID
+            ? "advanced"
+            : "guided",
+      }));
+    },
+
+    setBuilderSurface: (surface) => {
+      applyWorkingMutation((state) => {
+        const nextSurface =
+          state.activeTemplateId === CUSTOM_COMPOSE_TEMPLATE_ID
+            ? "advanced"
+            : surface;
+
+        return {
+          builderSurface: nextSurface,
+          editorMode:
+            nextSurface === "guided" && state.editorMode === "code"
+              ? "visual"
+              : state.editorMode,
+        };
+      });
+    },
+
+    setGuidedEntryStep: (step) => {
+      set({ guidedEntryStep: step });
     },
 
     setCustomCode: (code) => {
       applyWorkingMutation(() => ({ customCode: code }));
+    },
+
+    markPreviewReviewed: () => {
+      const state = get();
+      const previewFingerprint = getPreviewReviewFingerprint({
+        activeTemplateId: state.activeTemplateId,
+        nodes: state.nodes,
+        edges: state.edges,
+        nodeData: state.nodeData,
+        customCode: state.customCode,
+      });
+
+      set({
+        previewReviewFingerprint: previewFingerprint,
+        hasReviewedPreviewForCurrentDraft: true,
+      });
+    },
+
+    applyIntentDraft: (result, requestContent) => {
+      const state = get();
+      const snapshot = createBuilderSnapshotFromTemplate(
+        result.patch.templateId,
+        "visual"
+      );
+      const nextNodeData: NodeData = {
+        ...snapshot.nodeData,
+        ...deepClone(result.patch.nodeData),
+      };
+      const nextSnapshot = {
+        ...snapshot,
+        nodeData: nextNodeData,
+        customCode: state.customCode,
+      };
+      set({
+        activeTemplateId: nextSnapshot.activeTemplateId,
+        nodes: deepClone(nextSnapshot.nodes),
+        edges: deepClone(nextSnapshot.edges),
+        nodeData: deepClone(nextNodeData),
+        customCode: state.customCode,
+        editorMode: "visual",
+        builderSurface:
+          result.patch.templateId === CUSTOM_COMPOSE_TEMPLATE_ID
+            ? "advanced"
+            : "guided",
+        guidedEntryStep: "review",
+        activeSavedContractId: null,
+        hasUnsavedChanges: true,
+        hasReviewedPreviewForCurrentDraft: false,
+        previewReviewFingerprint: null,
+        lastNamedSaveAt: null,
+        restoredDraftAt: null,
+        baselineFingerprint: state.baselineFingerprint,
+        chatMessages: [
+          ...state.chatMessages,
+          {
+            id: makeId("chat"),
+            role: "user",
+            content: requestContent,
+          },
+          {
+            id: makeId("chat"),
+            role: "assistant",
+            content: result.assistantMessage,
+          },
+        ],
+        draftSummary: result.summary,
+        draftAssumptions: result.assumptions.map((item) => item.message),
+        lastIntentConfidence: result.templateRecommendation.confidence,
+      });
+
+      nodeIdCounter = maxNodeId(nextSnapshot.nodes);
+      addBuilderBreadcrumb("intent_draft_applied", {
+        templateId: nextSnapshot.activeTemplateId,
+        confidence: result.templateRecommendation.confidence,
+      });
+    },
+
+    clearIntentDraftState: () => {
+      set({
+        chatMessages: [],
+        draftSummary: null,
+        draftAssumptions: [],
+        lastIntentConfidence: null,
+        guidedEntryStep: "idea",
+      });
     },
 
     saveContract: (name) => {
@@ -403,6 +611,11 @@ export const useFlowStore = create<FlowState>((set, get) => {
         activeSavedContractId: contract.id,
         hasUnsavedChanges: false,
         lastNamedSaveAt: savedAt,
+        builderSurface:
+          state.activeTemplateId === CUSTOM_COMPOSE_TEMPLATE_ID
+            ? "advanced"
+            : state.builderSurface,
+        guidedEntryStep: "review",
         baselineFingerprint,
         restoredDraftAt: null,
       });
@@ -447,9 +660,22 @@ export const useFlowStore = create<FlowState>((set, get) => {
         editorMode: state.editorMode,
         activeSavedContractId: contract.id,
         hasUnsavedChanges: false,
+        hasReviewedPreviewForCurrentDraft: false,
+        previewReviewFingerprint: null,
         lastNamedSaveAt: contract.savedAt,
         restoredDraftAt: null,
+        builderSurface:
+          contract.templateId === CUSTOM_COMPOSE_TEMPLATE_ID
+            ? "advanced"
+            : state.builderSurface === "advanced" && state.editorMode === "visual"
+              ? "advanced"
+              : "guided",
+        guidedEntryStep: "review",
         baselineFingerprint,
+        chatMessages: [],
+        draftSummary: null,
+        draftAssumptions: [],
+        lastIntentConfidence: null,
       });
 
       nodeIdCounter = maxNodeId(snapshot.nodes);
@@ -471,8 +697,21 @@ export const useFlowStore = create<FlowState>((set, get) => {
     },
 
     importProjectDocument: (document) => {
-      const snapshot = buildImportedSnapshot(document, get().editorMode);
+      const snapshot = buildImportedSnapshot(document);
       const baselineFingerprint = getBuilderSnapshotFingerprint(snapshot);
+      const previewReviewFingerprint =
+        document.session.previewReviewFingerprint &&
+        document.session.previewReviewFingerprint ===
+          getPreviewReviewFingerprint({
+            activeTemplateId: snapshot.activeTemplateId,
+            nodes: snapshot.nodes,
+            edges: snapshot.edges,
+            nodeData: snapshot.nodeData,
+            customCode: snapshot.customCode,
+          })
+          ? document.session.previewReviewFingerprint
+          : null;
+      const hasReviewedPreviewForCurrentDraft = previewReviewFingerprint !== null;
 
       set({
         activeTemplateId: snapshot.activeTemplateId,
@@ -483,9 +722,21 @@ export const useFlowStore = create<FlowState>((set, get) => {
         editorMode: snapshot.editorMode,
         activeSavedContractId: null,
         hasUnsavedChanges: false,
+        hasReviewedPreviewForCurrentDraft,
+        previewReviewFingerprint,
         lastNamedSaveAt: document.metadata.lastNamedSaveAt,
         restoredDraftAt: null,
+        builderSurface:
+          snapshot.activeTemplateId === CUSTOM_COMPOSE_TEMPLATE_ID ||
+          snapshot.editorMode === "code"
+            ? "advanced"
+            : document.session.builderSurface,
+        guidedEntryStep: document.session.guidedEntryStep,
         baselineFingerprint,
+        chatMessages: deepClone(document.session.chatMessages),
+        draftSummary: document.session.draftSummary,
+        draftAssumptions: deepClone(document.session.draftAssumptions),
+        lastIntentConfidence: document.session.lastIntentConfidence,
       });
 
       nodeIdCounter = maxNodeId(snapshot.nodes);
@@ -534,6 +785,7 @@ export const useFlowStore = create<FlowState>((set, get) => {
 
 export {
   getBuilderSnapshotFingerprint,
+  getPreviewReviewFingerprint,
   migrateNodeData,
   sanitizeSavedCustomCode,
   sanitizeSavedEdges,

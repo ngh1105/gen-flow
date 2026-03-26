@@ -73,8 +73,8 @@ export default function CanvasPanel({ draggedNodeLabel = null }: CanvasPanelProp
   const isCustomCompose = activeTemplateId === "custom-compose";
   const modeTitle = isCustomCompose ? "Custom Compose" : "Template Mode";
   const modeDescription = isCustomCompose
-    ? "Add nodes by drag or click. Active node types drive code generation."
-    : "Layout locked. Logic comes from the selected template and its inputs.";
+    ? "Advanced block-by-block mode. Active blocks drive code generation."
+    : "Developer canvas for the current guided template. This view is read-only unless you switch into Custom Compose.";
   const isNearEmptyCompose = isCustomCompose && nodes.length <= 1;
 
   const styledEdges: Edge[] = useMemo(() => {
@@ -167,7 +167,7 @@ export default function CanvasPanel({ draggedNodeLabel = null }: CanvasPanelProp
         </p>
         {isCustomCompose && (
           <p className="mt-2 text-[10px] leading-relaxed text-muted/80">
-            Connections help organize flow; code generation is driven by active node types.
+            Connections help organize flow; code generation is driven by active blocks.
           </p>
         )}
       </div>
@@ -206,8 +206,8 @@ export default function CanvasPanel({ draggedNodeLabel = null }: CanvasPanelProp
 
       <div className="absolute bottom-4 left-4 text-[11px] text-muted/50 pointer-events-none select-none">
         {isCustomCompose
-          ? "GenFlow Canvas - Add by drag or click, then move nodes to arrange"
-          : "GenFlow Canvas - Inspect the template flow; node positions do not change logic"}
+          ? "Advanced canvas - add blocks by drag or click, then arrange the flow"
+          : "Template canvas - inspect the contract structure while guided setup stays primary"}
       </div>
     </div>
   );

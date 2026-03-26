@@ -5,6 +5,7 @@ import {
   parseProjectDocument,
   serializeProjectDocument,
 } from "@/lib/projectDocument";
+import { getPreviewReviewFingerprint } from "@/store/useFlowStore";
 import type { BuilderSnapshot } from "@/store/useFlowStore";
 
 const SNAPSHOT: BuilderSnapshot = {
@@ -29,11 +30,24 @@ const SNAPSHOT: BuilderSnapshot = {
 
 describe("project documents", () => {
   it("round-trips a versioned project document", () => {
+    const previewReviewFingerprint = getPreviewReviewFingerprint(SNAPSHOT);
     const document = createProjectDocument({
       name: "Portable Demo",
       snapshot: SNAPSHOT,
       lastNamedSaveAt: 123,
       lastDraftSavedAt: 456,
+      session: {
+        builderSurface: "advanced",
+        guidedEntryStep: "review",
+        previewReviewFingerprint,
+        chatMessages: [
+          { id: "user-1", role: "user", content: "Build a portable demo" },
+          { id: "assistant-1", role: "assistant", content: "Draft prepared." },
+        ],
+        draftSummary: "Portable demo summary",
+        draftAssumptions: ["Uses the current custom override."],
+        lastIntentConfidence: "medium",
+      },
     });
 
     const parsed = parseProjectDocument(serializeProjectDocument(document));
@@ -43,6 +57,10 @@ describe("project documents", () => {
     expect(parsed.snapshot.nodeData.contractName).toBe("PortableDemo");
     expect(parsed.snapshot.customCode).toBe("print('manual override')");
     expect(parsed.metadata.lastNamedSaveAt).toBe(123);
+    expect(parsed.session.builderSurface).toBe("advanced");
+    expect(parsed.session.previewReviewFingerprint).toBe(previewReviewFingerprint);
+    expect(parsed.session.chatMessages).toHaveLength(2);
+    expect(parsed.session.draftSummary).toBe("Portable demo summary");
   });
 
   it("rejects non-GenFlow JSON", () => {
@@ -72,5 +90,8 @@ describe("project documents", () => {
     expect(parsed.metadata.name).toBe("Legacy Demo");
     expect(parsed.snapshot.activeTemplateId).toBe("simple-storage");
     expect(parsed.snapshot.customCode).toBe("");
+    expect(parsed.session.builderSurface).toBe("guided");
+    expect(parsed.session.guidedEntryStep).toBe("review");
+    expect(parsed.session.chatMessages).toHaveLength(0);
   });
 });

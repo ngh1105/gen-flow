@@ -49,8 +49,20 @@ export default function MyContractsPanel({
   const activeTemplateId = useFlowStore((state) => state.activeTemplateId);
   const activeSavedContractId = useFlowStore((state) => state.activeSavedContractId);
   const hasUnsavedChanges = useFlowStore((state) => state.hasUnsavedChanges);
+  const hasReviewedPreviewForCurrentDraft = useFlowStore(
+    (state) => state.hasReviewedPreviewForCurrentDraft
+  );
   const lastDraftSavedAt = useFlowStore((state) => state.lastDraftSavedAt);
   const lastNamedSaveAt = useFlowStore((state) => state.lastNamedSaveAt);
+  const builderSurface = useFlowStore((state) => state.builderSurface);
+  const guidedEntryStep = useFlowStore((state) => state.guidedEntryStep);
+  const previewReviewFingerprint = useFlowStore(
+    (state) => state.previewReviewFingerprint
+  );
+  const chatMessages = useFlowStore((state) => state.chatMessages);
+  const draftSummary = useFlowStore((state) => state.draftSummary);
+  const draftAssumptions = useFlowStore((state) => state.draftAssumptions);
+  const lastIntentConfidence = useFlowStore((state) => state.lastIntentConfidence);
   const importProjectDocument = useFlowStore((state) => state.importProjectDocument);
   const dialogRef = useDialogFocusTrap({ open, onClose });
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -67,8 +79,16 @@ export default function MyContractsPanel({
       getBuilderStatus(nodeData, nodes, {
         activeTemplateId,
         edges,
+        enforcePreviewReview: activeTemplateId !== "custom-compose",
+        previewReviewed: hasReviewedPreviewForCurrentDraft,
       }),
-    [activeTemplateId, edges, nodeData, nodes]
+    [
+      activeTemplateId,
+      edges,
+      hasReviewedPreviewForCurrentDraft,
+      nodeData,
+      nodes,
+    ]
   );
 
   const pendingLoadContract = savedContracts.find((contract) => contract.id === pendingLoadId);
@@ -103,6 +123,15 @@ export default function MyContractsPanel({
       activeSavedContractId,
       lastNamedSaveAt,
       lastDraftSavedAt,
+      session: {
+        builderSurface,
+        guidedEntryStep,
+        previewReviewFingerprint,
+        chatMessages,
+        draftSummary,
+        draftAssumptions,
+        lastIntentConfidence,
+      },
     });
     const fileName = `${projectDocument.metadata.name
       .toLowerCase()

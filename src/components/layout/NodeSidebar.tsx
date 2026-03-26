@@ -137,7 +137,7 @@ export default function NodeSidebar({ onDragStateChange }: NodeSidebarProps) {
       <div className="px-3 py-3 border-b border-border">
         <div className="flex items-center justify-between gap-2">
           <h3 className="text-[11px] font-display font-medium text-muted uppercase tracking-widest">
-            Node Library
+            Advanced Blocks
           </h3>
           <span className="text-[9px] text-muted/60 font-mono">
             {isCustomCompose ? "compose" : "locked"}
@@ -145,8 +145,8 @@ export default function NodeSidebar({ onDragStateChange }: NodeSidebarProps) {
         </div>
         <p className="mt-1 text-[10px] text-muted/55 leading-tight">
           {isCustomCompose
-            ? "Drag nodes into the canvas or click Add to place them."
-            : "Switch to Custom Compose to add new nodes."}
+            ? "Advanced mode: drag blocks into the canvas or click Add."
+            : "Switch to Custom Compose to add new blocks."}
         </p>
         {builderStatus.health.recommendedNodeTypes.length > 0 && (
           <p className="mt-2 text-[10px] leading-tight text-foreground">

@@ -1,6 +1,10 @@
 import { beforeEach, describe, expect, it } from "vitest";
+import { createBuilderSnapshot } from "@/lib/contractPersistence";
+import { generateIntentDraft } from "@/lib/intentDraft";
+import { createProjectDocument } from "@/lib/projectDocument";
 import {
   getBuilderSnapshotFingerprint,
+  getPreviewReviewFingerprint,
   migrateNodeData,
   sanitizeSavedNodes,
   sanitizeSavedEdges,
@@ -34,14 +38,22 @@ beforeEach(() => {
     edges: [],
     nodeData: EMPTY_NODE_DATA,
     editorMode: "visual",
+    builderSurface: "guided",
+    guidedEntryStep: "idea",
     customCode: "",
     savedContracts: [],
     activeSavedContractId: null,
     hasUnsavedChanges: false,
+    hasReviewedPreviewForCurrentDraft: false,
+    previewReviewFingerprint: null,
     lastDraftSavedAt: null,
     lastNamedSaveAt: null,
     restoredDraftAt: null,
     baselineFingerprint,
+    chatMessages: [],
+    draftSummary: null,
+    draftAssumptions: [],
+    lastIntentConfidence: null,
   });
 });
 
@@ -184,5 +196,133 @@ describe("useFlowStore dirty tracking", () => {
     expect(useFlowStore.getState().hasUnsavedChanges).toBe(false);
     expect(useFlowStore.getState().activeSavedContractId).toBeTruthy();
     expect(useFlowStore.getState().lastNamedSaveAt).toBeTypeOf("number");
+  });
+});
+
+describe("useFlowStore preview review gate", () => {
+  it("marks the current draft as reviewed after opening preview", () => {
+    useFlowStore.getState().markPreviewReviewed();
+
+    expect(useFlowStore.getState().hasReviewedPreviewForCurrentDraft).toBe(true);
+    expect(useFlowStore.getState().previewReviewFingerprint).toBeTypeOf("string");
+  });
+
+  it("resets preview review after a meaningful draft edit", () => {
+    useFlowStore.getState().markPreviewReviewed();
+    useFlowStore.getState().setContractName("Changed");
+
+    expect(useFlowStore.getState().hasReviewedPreviewForCurrentDraft).toBe(false);
+    expect(useFlowStore.getState().previewReviewFingerprint).toBeNull();
+  });
+
+  it("resets preview review after manual code edits", () => {
+    useFlowStore.getState().markPreviewReviewed();
+    useFlowStore.getState().setCustomCode("print('custom override')");
+
+    expect(useFlowStore.getState().hasReviewedPreviewForCurrentDraft).toBe(false);
+    expect(useFlowStore.getState().previewReviewFingerprint).toBeNull();
+  });
+});
+
+describe("useFlowStore intent drafting", () => {
+  it("accepts an intent draft and moves the guided flow into review mode", () => {
+    const result = generateIntentDraft({
+      brief:
+        "Build a contract that fetches prices from https://example.com/feed and stores the latest result.",
+    });
+
+    useFlowStore.getState().applyIntentDraft(result, "price feed contract");
+
+    const state = useFlowStore.getState();
+    expect(state.guidedEntryStep).toBe("review");
+    expect(state.chatMessages).toHaveLength(2);
+    expect(state.draftSummary).toBeTruthy();
+    expect(state.lastIntentConfidence).toBe(result.templateRecommendation.confidence);
+  });
+
+  it("treats an accepted intent draft as unsaved work", () => {
+    const result = generateIntentDraft({
+      brief:
+        "Build a contract that fetches prices from https://example.com/feed and stores the latest result.",
+    });
+
+    useFlowStore.getState().applyIntentDraft(result, "price feed contract");
+
+    const state = useFlowStore.getState();
+    expect(state.hasUnsavedChanges).toBe(true);
+    expect(state.activeSavedContractId).toBeNull();
+  });
+
+  it("preserves manual code overrides when applying an intent refinement", () => {
+    const manualOverride = "print('manual override')";
+    const currentSnapshot = createBuilderSnapshot({
+      activeTemplateId: "simple-storage",
+      nodes: [],
+      edges: [],
+      nodeData: {
+        ...EMPTY_NODE_DATA,
+        contractName: "StorageDraft",
+      },
+      customCode: manualOverride,
+      editorMode: "visual",
+    });
+    const result = generateIntentDraft({
+      brief: "Use a URL source instead and turn this into a price feed contract.",
+      currentSnapshot,
+      mode: "refine",
+    });
+
+    useFlowStore.setState({
+      customCode: manualOverride,
+      nodeData: currentSnapshot.nodeData,
+    });
+    useFlowStore.getState().applyIntentDraft(result, "Use a URL source instead.");
+
+    expect(useFlowStore.getState().customCode).toBe(manualOverride);
+  });
+});
+
+describe("useFlowStore project documents", () => {
+  it("restores guided draft state from project JSON imports", () => {
+    const snapshot = createBuilderSnapshot({
+      activeTemplateId: "simple-storage",
+      nodes: [],
+      edges: [],
+      nodeData: {
+        ...EMPTY_NODE_DATA,
+        contractName: "Imported Guided Draft",
+      },
+      customCode: "print('kept override')",
+      editorMode: "visual",
+    });
+    const previewReviewFingerprint = getPreviewReviewFingerprint(snapshot);
+    const document = createProjectDocument({
+      name: "Imported Guided Draft",
+      snapshot,
+      session: {
+        builderSurface: "guided",
+        guidedEntryStep: "review",
+        previewReviewFingerprint,
+        chatMessages: [
+          { id: "user-1", role: "user", content: "Build a guided draft" },
+          { id: "assistant-1", role: "assistant", content: "Guided draft prepared." },
+        ],
+        draftSummary: "Imported guided summary",
+        draftAssumptions: ["Assumption A"],
+        lastIntentConfidence: "high",
+      },
+    });
+
+    useFlowStore.getState().importProjectDocument(document);
+
+    const state = useFlowStore.getState();
+    expect(state.builderSurface).toBe("guided");
+    expect(state.guidedEntryStep).toBe("review");
+    expect(state.hasReviewedPreviewForCurrentDraft).toBe(true);
+    expect(state.previewReviewFingerprint).toBe(previewReviewFingerprint);
+    expect(state.chatMessages).toHaveLength(2);
+    expect(state.draftSummary).toBe("Imported guided summary");
+    expect(state.draftAssumptions).toEqual(["Assumption A"]);
+    expect(state.lastIntentConfidence).toBe("high");
   });
 });

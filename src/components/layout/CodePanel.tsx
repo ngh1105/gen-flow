@@ -16,6 +16,7 @@ import { useFlowStore } from "@/store/useFlowStore";
 import { generateCode } from "@/engine/codeGenerator";
 import { registerGenVMLinter, runLinterOnCode } from "@/engine/monacoGenVM";
 import type { LintDiagnostic } from "@/engine/genvm-linter";
+import { resolveBuilderCode } from "@/lib/builderCode";
 import {
   getBuilderStatus,
 } from "@/lib/exportRequirements";
@@ -27,6 +28,10 @@ export default function CodePanel() {
   const activeTemplateId = useFlowStore((s) => s.activeTemplateId);
   const nodes = useFlowStore((s) => s.nodes);
   const edges = useFlowStore((s) => s.edges);
+  const customCode = useFlowStore((s) => s.customCode);
+  const hasReviewedPreviewForCurrentDraft = useFlowStore(
+    (s) => s.hasReviewedPreviewForCurrentDraft
+  );
   const [copied, setCopied] = useState(false);
   const [diagnostics, setDiagnostics] = useState<LintDiagnostic[]>([]);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -34,14 +39,17 @@ export default function CodePanel() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const monacoRef = useRef<any>(null);
 
-  const code = generateCode(nodeData, activeTemplateId, nodes);
+  const generatedCode = generateCode(nodeData, activeTemplateId, nodes);
+  const code = resolveBuilderCode(generatedCode, customCode);
   const builderStatus = useMemo(
     () =>
       getBuilderStatus(nodeData, nodes, {
         activeTemplateId,
         edges,
+        enforcePreviewReview: activeTemplateId !== "custom-compose",
+        previewReviewed: hasReviewedPreviewForCurrentDraft,
       }),
-    [activeTemplateId, edges, nodeData, nodes]
+    [activeTemplateId, edges, hasReviewedPreviewForCurrentDraft, nodeData, nodes]
   );
   const visibleRequirements = builderStatus.requirements.filter(
     (requirement) => requirement.required
@@ -50,7 +58,9 @@ export default function CodePanel() {
   const isComplete = builderStatus.readyToExport;
   const exportTitle = isComplete
     ? "Download .py file"
-    : `Missing: ${missingLabels.join(", ")}`;
+    : builderStatus.preview.blocked
+      ? "Open Preview for this draft before exporting"
+      : `Missing: ${missingLabels.join(", ")}`;
 
   // Re-lint whenever generated code changes (node data, template switch, etc.)
   useEffect(() => {
@@ -207,7 +217,7 @@ export default function CodePanel() {
               Export Checklist
             </p>
             <p className="mt-1 text-[11px] text-muted">
-              Fill the required inputs for the active nodes before export.
+              Fill the required answers and review Preview before export.
             </p>
           </div>
           <span
@@ -250,6 +260,15 @@ export default function CodePanel() {
             {builderStatus.blockers.map((blocker) => (
               <p key={blocker.id}>{blocker.message}</p>
             ))}
+          </div>
+        )}
+
+        {builderStatus.preview.blocked && (
+          <div className="mt-3 border border-border bg-background px-3 py-2 text-[11px] text-muted">
+            <p className="font-display text-[10px] uppercase tracking-widest text-foreground">
+              Preview required
+            </p>
+            <p className="mt-1">{builderStatus.preview.message}</p>
           </div>
         )}
 

@@ -28,6 +28,12 @@ export interface BuilderStatus {
   requirements: ExportRequirement[];
   blockers: BuilderIssue[];
   warnings: BuilderIssue[];
+  preview: {
+    required: boolean;
+    reviewed: boolean;
+    blocked: boolean;
+    message: string;
+  };
   health: {
     issues: FlowHealthIssue[];
     missingNodeTypes: string[];
@@ -118,13 +124,20 @@ export function getBuilderStatus(
   options: {
     activeTemplateId?: string;
     edges?: Edge[];
+    enforcePreviewReview?: boolean;
+    previewReviewed?: boolean;
   } = {}
 ): BuilderStatus {
   const requirements = getExportRequirements(nodeData, nodes);
   const blockers = requirements
     .filter((requirement) => requirement.required && !requirement.done)
     .map(requirementToIssue);
-  const readyToExport = blockers.length === 0;
+  const previewRequired =
+    options.enforcePreviewReview === true &&
+    (options.activeTemplateId ?? "custom-compose") !== "custom-compose";
+  const previewReviewed = !previewRequired || options.previewReviewed === true;
+  const previewBlocked = previewRequired && !previewReviewed;
+  const readyToExport = blockers.length === 0 && !previewBlocked;
   const healthReport = getFlowHealthReport({
     activeTemplateId: options.activeTemplateId ?? "custom-compose",
     nodeData,
@@ -146,6 +159,16 @@ export function getBuilderStatus(
     requirements,
     blockers,
     warnings,
+    preview: {
+      required: previewRequired,
+      reviewed: previewReviewed,
+      blocked: previewBlocked,
+      message: previewBlocked
+        ? "Open Preview once for the current draft before exporting."
+        : previewRequired
+          ? "Preview reviewed for the current draft."
+          : "Preview review is optional in this workspace.",
+    },
     health: {
       issues: healthReport.issues,
       missingNodeTypes: healthReport.missingNodeTypes,
@@ -157,6 +180,8 @@ export function getBuilderStatus(
     summary:
       blockers.length > 0
         ? `Missing ${blockers.map((item) => item.label).join(", ")}`
+        : previewBlocked
+          ? "Preview this draft before export"
         : warnings.length > 0
           ? `Ready to export with ${warnings.length} flow warning${warnings.length > 1 ? "s" : ""}`
           : "Ready to export",

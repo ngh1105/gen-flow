@@ -30,6 +30,7 @@ test.beforeEach(async ({ page }) => {
     }
     localStorage.setItem("genflow-welcome-dismissed-v2", "true");
     localStorage.setItem("genflow-welcome-dismissed-v3", "true");
+    localStorage.setItem("genflow-guided-wizard-opened-v1", "true");
   });
 });
 
@@ -38,13 +39,29 @@ test("first-time onboarding can launch Smart Wizard from the welcome overlay", a
 }) => {
   await page.addInitScript(() => {
     localStorage.removeItem("genflow-welcome-dismissed-v3");
+    localStorage.removeItem("genflow-guided-wizard-opened-v1");
   });
 
   await page.goto("/builder");
 
   await expect(page.getByTestId("welcome-open-wizard")).toBeVisible();
+  await expect(page.getByTestId("wizard-overlay")).toHaveCount(0);
   await page.getByTestId("welcome-open-wizard").click();
   await expect(page.getByTestId("wizard-overlay")).toBeVisible();
+});
+
+test("first-time onboarding can stay in the idea workspace", async ({ page }) => {
+  await page.addInitScript(() => {
+    localStorage.removeItem("genflow-welcome-dismissed-v3");
+    localStorage.removeItem("genflow-guided-wizard-opened-v1");
+  });
+
+  await page.goto("/builder");
+
+  await expect(page.getByRole("button", { name: "Start With An Idea" })).toBeVisible();
+  await page.getByRole("button", { name: "Start With An Idea" }).click();
+  await expect(page.getByTestId("wizard-overlay")).toHaveCount(0);
+  await expect(page.getByTestId("chat-first-shell")).toBeVisible();
 });
 
 test("landing page can navigate to builder", async ({ page }) => {
@@ -56,12 +73,12 @@ test("landing page can navigate to builder", async ({ page }) => {
 
   await page.getByRole("link", { name: "Open Builder" }).first().click();
   await expect(page).toHaveURL(/\/builder$/);
-  await expect(page.getByText("Node Library")).toBeVisible();
+  await expect(page.getByTestId("chat-first-shell")).toBeVisible();
 });
 
 test("builder supports template switch and local save/delete flow", async ({ page }) => {
   await page.goto("/builder");
-  await expect(page.getByText("Node Library")).toBeVisible();
+  await expect(page.getByTestId("chat-first-shell")).toBeVisible();
 
   await page.getByTestId("template-switcher-trigger").click();
   await page.getByTestId("template-option-simple-storage").click();
@@ -93,20 +110,22 @@ test("builder supports template switch and local save/delete flow", async ({ pag
 test("template switching confirms before replacing an unsaved draft", async ({ page }) => {
   await page.goto("/builder");
 
-  await page.getByTestId("contract-name-input").fill("Unsaved Draft");
   await page.getByTestId("template-switcher-trigger").click();
   await page.getByTestId("template-option-simple-storage").click();
+  await page.getByTestId("contract-name-input").fill("Unsaved Draft");
+  await page.getByTestId("template-switcher-trigger").click();
+  await page.getByTestId("template-option-ai-governance").click();
 
   await expect(page.getByRole("dialog", { name: "Replace current draft?" })).toBeVisible();
   await page.getByRole("button", { name: "Cancel" }).click();
   await expect(page.getByRole("dialog", { name: "Replace current draft?" })).toHaveCount(0);
-  await expect(page.getByTestId("template-switcher-trigger")).not.toContainText("Simple Storage");
+  await expect(page.getByTestId("template-switcher-trigger")).toContainText("Simple Storage");
 
   await page.getByTestId("template-switcher-trigger").click();
-  await page.getByTestId("template-option-simple-storage").click();
+  await page.getByTestId("template-option-ai-governance").click();
   await page.getByRole("button", { name: "Load Template" }).click();
 
-  await expect(page.getByTestId("template-switcher-trigger")).toContainText("Simple Storage");
+  await expect(page.getByTestId("template-switcher-trigger")).toContainText("AI Governance");
 });
 
 test("builder can load a previously saved contract state", async ({ page }) => {
@@ -188,17 +207,139 @@ test("deleting a named contract requires confirmation", async ({ page }) => {
 
 test("builder supports switching between visual and code mode", async ({ page }) => {
   await page.goto("/builder");
+  await page.getByTestId("template-switcher-trigger").click();
+  await page.getByTestId("template-option-simple-storage").click();
+  await page.getByTestId("contract-name-input").fill("Mode Smoke");
 
+  await page.getByTestId("advanced-tools-trigger").click();
+  await page.getByTestId("mode-toggle-advanced-visual").click();
+  await expect(page.getByTestId("advanced-return-guided")).toBeVisible();
+  await page.getByTestId("advanced-return-guided").click();
+  await expect(page.getByTestId("contract-name-input")).toHaveValue("Mode Smoke");
+
+  await page.getByTestId("advanced-tools-trigger").click();
   await page.getByTestId("mode-toggle-code").click();
   await expect(page.getByTestId("editor-download-button")).toBeVisible();
 
+  await page.getByTestId("advanced-tools-trigger").click();
   await page.getByTestId("mode-toggle-visual").click();
+  await expect(page.getByTestId("guided-export-button")).toBeVisible();
+});
+
+test("guided export keeps the advanced code override", async ({ page }) => {
+  await page.addInitScript(() => {
+    localStorage.setItem(
+      "genflow-working-session",
+      JSON.stringify({
+        schemaVersion: 2,
+        updatedAt: 123,
+        activeTemplateId: "simple-storage",
+        nodeData: {
+          contractName: "Code Override",
+        },
+        customCode:
+          "# guided export should keep this override\nclass CodeOverride:\n    pass\n",
+        nodes: [],
+        edges: [],
+        editorMode: "visual",
+        baselineFingerprint: "baseline",
+        activeSavedContractId: null,
+        lastNamedSaveAt: null,
+        builderSurface: "guided",
+        guidedEntryStep: "review",
+        previewReviewFingerprint: null,
+        chatMessages: [],
+        draftSummary: null,
+        draftAssumptions: [],
+        lastIntentConfidence: null,
+      })
+    );
+  });
+
+  await page.goto("/builder");
+  await expect(page.getByTestId("contract-name-input")).toHaveValue("Code Override");
+  await expect(page.getByTestId("guided-export-button")).toContainText(
+    "Review Preview To Export"
+  );
+
+  await page.getByTestId("guided-open-preview").click();
+  await expect(page.getByTestId("simulation-preview-panel")).toBeVisible();
+  await page.getByRole("button", { name: "Close behavior preview" }).click();
+
+  const [download] = await Promise.all([
+    page.waitForEvent("download"),
+    page.getByTestId("guided-export-button").click(),
+  ]);
+
+  expect(download.suggestedFilename()).toBe("code_override.py");
+
+  const downloadPath = await download.path();
+  expect(downloadPath).not.toBeNull();
+
+  const content = await readFile(downloadPath!, "utf8");
+  expect(content).toContain("# guided export should keep this override");
+  expect(content).toContain("class CodeOverride:");
+});
+
+test("developer-tools export keeps the advanced code override", async ({ page }) => {
+  await page.addInitScript(() => {
+    localStorage.setItem(
+      "genflow-working-session",
+      JSON.stringify({
+        schemaVersion: 2,
+        updatedAt: 123,
+        activeTemplateId: "simple-storage",
+        nodeData: {
+          contractName: "Code Override Visual",
+        },
+        customCode:
+          "# developer-tools export should keep this override\nclass CodeOverrideVisual:\n    pass\n",
+        nodes: [],
+        edges: [],
+        editorMode: "visual",
+        baselineFingerprint: "baseline",
+        activeSavedContractId: null,
+        lastNamedSaveAt: null,
+        builderSurface: "guided",
+        guidedEntryStep: "review",
+        previewReviewFingerprint: null,
+        chatMessages: [],
+        draftSummary: null,
+        draftAssumptions: [],
+        lastIntentConfidence: null,
+      })
+    );
+  });
+
+  await page.goto("/builder");
+  await page.getByTestId("advanced-tools-trigger").click();
+  await page.getByTestId("mode-toggle-advanced-visual").click();
   await expect(page.getByTestId("generated-download-button")).toBeVisible();
+
+  await page.getByTestId("open-simulation-preview").click();
+  await expect(page.getByTestId("simulation-preview-panel")).toBeVisible();
+  await page.getByRole("button", { name: "Close behavior preview" }).click();
+
+  const [download] = await Promise.all([
+    page.waitForEvent("download"),
+    page.getByTestId("generated-download-button").click(),
+  ]);
+
+  expect(download.suggestedFilename()).toBe("code_override_visual.py");
+
+  const downloadPath = await download.path();
+  expect(downloadPath).not.toBeNull();
+
+  const content = await readFile(downloadPath!, "utf8");
+  expect(content).toContain("# developer-tools export should keep this override");
+  expect(content).toContain("class CodeOverrideVisual:");
 });
 
 test("builder restores the autosaved draft after reload", async ({ page }) => {
   await page.goto("/builder");
 
+  await page.getByTestId("template-switcher-trigger").click();
+  await page.getByTestId("template-option-simple-storage").click();
   await page.getByTestId("contract-name-input").fill("Recovered Draft");
   await page.waitForTimeout(700);
   await page.evaluate(() => {
@@ -220,8 +361,12 @@ test("builder can export generated python contract", async ({ page }) => {
   await page.getByTestId("template-option-simple-storage").click();
 
   await page.getByTestId("contract-name-input").fill("Export Smoke");
-  const downloadButton = page.getByTestId("generated-download-button");
-  await expect(downloadButton).toBeEnabled();
+  const downloadButton = page.getByTestId("guided-export-button");
+  await expect(downloadButton).toContainText("Review Preview To Export");
+
+  await page.getByTestId("guided-open-preview").click();
+  await expect(page.getByTestId("simulation-preview-panel")).toBeVisible();
+  await page.getByRole("button", { name: "Close behavior preview" }).click();
 
   const [download] = await Promise.all([
     page.waitForEvent("download"),
@@ -237,10 +382,11 @@ test("template mode keeps node adding locked for prebuilt flows", async ({ page 
   await page.getByTestId("template-switcher-trigger").click();
   await page.getByTestId("template-option-simple-storage").click();
   await expect(page.getByTestId("template-switcher-trigger")).toContainText("Simple Storage");
+  await expect(page.getByTestId("no-code-setup-panel")).toBeVisible();
 
-  await expect(page.getByTestId("sidebar-add-llmPromptNode")).toBeDisabled();
-  await expect(page.getByTestId("builder-canvas-wrapper").getByText("Template Mode")).toBeVisible();
-  await expect(page.locator(".react-flow__node")).toHaveCount(3);
+  await expect(page.getByTestId("guided-open-wizard")).toBeVisible();
+  await expect(page.getByTestId("no-code-setup-panel")).toBeVisible();
+  await expect(page.getByTestId("builder-canvas")).toHaveCount(0);
 });
 
 test("custom compose drag-and-drop changes generation rules and exported code", async ({
@@ -448,14 +594,16 @@ test("wizard recommends Onchain Justice and loads the matching template", async 
   await expect(page.getByTestId("template-switcher-trigger")).toContainText("Onchain Justice");
 
   await page.getByTestId("contract-name-input").fill("Justice Smoke");
-  const downloadButton = page.getByTestId("generated-download-button");
-  await expect(downloadButton).toBeDisabled();
+  const downloadButton = page.getByTestId("guided-export-button");
+  await expect(downloadButton).toContainText("Review Preview To Export");
 
   await page.getByTestId("url-input").fill("https://example.com/rules");
   await page
     .getByTestId("prompt-input")
     .fill("Review the dispute summary, evidence bundle, and policy text to produce a fair ruling.");
-  await expect(downloadButton).toBeEnabled();
+  await page.getByTestId("guided-open-preview").click();
+  await expect(page.getByTestId("simulation-preview-panel")).toBeVisible();
+  await page.getByRole("button", { name: "Close behavior preview" }).click();
 
   const [download] = await Promise.all([
     page.waitForEvent("download"),
@@ -484,13 +632,15 @@ test("featured AI Governance template exports governance consensus code", async 
   await expect(page.getByTestId("template-switcher-trigger")).toContainText("AI Governance");
 
   await page.getByTestId("contract-name-input").fill("Governance Smoke");
-  const downloadButton = page.getByTestId("generated-download-button");
-  await expect(downloadButton).toBeDisabled();
+  const downloadButton = page.getByTestId("guided-export-button");
+  await expect(downloadButton).toContainText("Review Preview To Export");
 
   await page
     .getByTestId("prompt-input")
     .fill("Recommend a governance decision with structured actions and rationale.");
-  await expect(downloadButton).toBeEnabled();
+  await page.getByTestId("guided-open-preview").click();
+  await expect(page.getByTestId("simulation-preview-panel")).toBeVisible();
+  await page.getByRole("button", { name: "Close behavior preview" }).click();
 
   const [download] = await Promise.all([
     page.waitForEvent("download"),
@@ -530,4 +680,85 @@ test("wizard closes on Escape and returns focus to the opener", async ({ page })
 
   await expect(page.getByTestId("wizard-overlay")).toHaveCount(0);
   await expect(openWizardButton).toBeFocused();
+});
+
+test("chat-first flow can generate, review, and accept a first draft", async ({ page }) => {
+  await page.goto("/builder");
+
+  await expect(page.getByTestId("chat-first-shell")).toBeVisible();
+  await page
+    .getByTestId("idea-brief-input")
+    .fill("Build a contract that fetches prices from https://example.com/feed and stores the latest result.");
+  await page.getByTestId("idea-generate-button").click();
+
+  await expect(page.getByTestId("idea-draft-review")).toBeVisible();
+  await expect(page.getByTestId("idea-draft-review")).toContainText("price");
+  await page.getByTestId("idea-accept-draft").click();
+
+  await expect(page.getByTestId("no-code-setup-panel")).toBeVisible();
+  await expect(page.getByTestId("contract-name-input")).toHaveValue(/.+/);
+});
+
+test("low-confidence chat draft shows assumptions before apply", async ({ page }) => {
+  await page.goto("/builder");
+
+  await page
+    .getByTestId("idea-brief-input")
+    .fill("Make something smart that helps people decide what to do next.");
+  await page.getByTestId("idea-generate-button").click();
+
+  await expect(page.getByTestId("idea-draft-review")).toContainText("What I assumed");
+});
+
+test("refining a chat-created draft updates the review flow and resets preview gate", async ({
+  page,
+}) => {
+  await page.goto("/builder");
+
+  await page
+    .getByTestId("idea-brief-input")
+    .fill("Create a governance contract that asks AI to review proposals and recommend actions.");
+  await page.getByTestId("idea-generate-button").click();
+  await page.getByTestId("idea-accept-draft").click();
+
+  await page.getByTestId("contract-name-input").fill("Refine Smoke");
+  await page.getByTestId("guided-open-preview").click();
+  await expect(page.getByTestId("simulation-preview-panel")).toBeVisible();
+  await page.getByRole("button", { name: "Close behavior preview" }).click();
+  await expect(page.getByTestId("guided-export-button")).toContainText("Export Python");
+
+  await page
+    .getByTestId("refine-request-input")
+    .fill("Use a URL source instead and turn this into a price feed contract.");
+  await page.getByTestId("refine-request-generate").click();
+  await expect(page.getByTestId("refine-review-panel")).toBeVisible();
+  await page.getByTestId("refine-apply-button").click();
+
+  await expect(page.getByTestId("guided-export-button")).toContainText("Review Preview To Export");
+});
+
+test("guided template export stays blocked until preview is reviewed for the current draft", async ({
+  page,
+}) => {
+  await page.goto("/builder");
+
+  await page.getByTestId("template-switcher-trigger").click();
+  await page.getByTestId("template-option-simple-storage").click();
+  await page.getByTestId("contract-name-input").fill("Preview Gate");
+
+  const downloadButton = page.getByTestId("guided-export-button");
+  await expect(downloadButton).toContainText("Review Preview To Export");
+
+  await downloadButton.click();
+  await expect(page.getByTestId("simulation-preview-panel")).toBeVisible();
+  await page.getByRole("button", { name: "Close behavior preview" }).click();
+
+  const [download] = await Promise.all([
+    page.waitForEvent("download"),
+    downloadButton.click(),
+  ]);
+  expect(download.suggestedFilename()).toBe("preview_gate.py");
+
+  await page.getByTestId("contract-name-input").fill("Preview Gate Changed");
+  await expect(downloadButton).toContainText("Review Preview To Export");
 });

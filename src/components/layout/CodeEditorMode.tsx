@@ -15,6 +15,7 @@ import {
 import { generateCode } from "@/engine/codeGenerator";
 import type { LintDiagnostic } from "@/engine/genvm-linter";
 import { registerGenVMLinter, runLinterOnCode } from "@/engine/monacoGenVM";
+import { resolveBuilderCode } from "@/lib/builderCode";
 import { getBuilderStatus } from "@/lib/exportRequirements";
 import { getNodeLabel } from "@/lib/nodeCatalog";
 import { useFlowStore } from "@/store/useFlowStore";
@@ -27,13 +28,16 @@ export default function CodeEditorMode() {
   const nodes = useFlowStore((s) => s.nodes);
   const edges = useFlowStore((s) => s.edges);
   const customCode = useFlowStore((s) => s.customCode);
+  const hasReviewedPreviewForCurrentDraft = useFlowStore(
+    (s) => s.hasReviewedPreviewForCurrentDraft
+  );
   const setCustomCode = useFlowStore((s) => s.setCustomCode);
   const [copied, setCopied] = useState(false);
   const [diagnostics, setDiagnostics] = useState<LintDiagnostic[]>([]);
   const editorRef = useRef<Parameters<OnMount>[0] | null>(null);
 
   const generatedCode = generateCode(nodeData, activeTemplateId, nodes);
-  const displayCode = customCode || generatedCode;
+  const displayCode = resolveBuilderCode(generatedCode, customCode);
   const hasManualEdits = customCode.trim().length > 0;
   const hasDivergedFromGenerated =
     hasManualEdits && customCode.trim() !== generatedCode.trim();
@@ -42,8 +46,16 @@ export default function CodeEditorMode() {
       getBuilderStatus(nodeData, nodes, {
         activeTemplateId,
         edges,
+        enforcePreviewReview: activeTemplateId !== "custom-compose",
+        previewReviewed: hasReviewedPreviewForCurrentDraft,
       }),
-    [activeTemplateId, edges, nodeData, nodes]
+    [
+      activeTemplateId,
+      edges,
+      hasReviewedPreviewForCurrentDraft,
+      nodeData,
+      nodes,
+    ]
   );
   const activeNodeLabels = useMemo(
     () =>
@@ -73,6 +85,10 @@ export default function CodeEditorMode() {
   }, [displayCode]);
 
   const handleDownload = useCallback(() => {
+    if (!builderStatus.readyToExport) {
+      return;
+    }
+
     const contractName = nodeData.contractName.trim() || "my_contract";
     const fileName = `${contractName.toLowerCase().replace(/\s+/g, "_")}.py`;
     const blob = new Blob([displayCode], { type: "text/x-python" });
@@ -82,7 +98,7 @@ export default function CodeEditorMode() {
     anchor.download = fileName;
     anchor.click();
     URL.revokeObjectURL(url);
-  }, [displayCode, nodeData.contractName]);
+  }, [builderStatus.readyToExport, displayCode, nodeData.contractName]);
 
   const handleInsertSnippet = useCallback(
     (snippet: string) => {
@@ -142,9 +158,26 @@ export default function CodeEditorMode() {
             <button
               onClick={handleDownload}
               data-testid="editor-download-button"
-              aria-label="Download current editor code"
-              className="flex items-center gap-1 px-2 py-1.5 rounded-none text-xs font-medium bg-foreground text-background hover:opacity-90 active:scale-[0.98] border border-foreground transition-all duration-150"
-              title="Download .py file"
+              aria-disabled={!builderStatus.readyToExport}
+              aria-label={
+                builderStatus.readyToExport
+                  ? "Download current editor code"
+                  : builderStatus.preview.blocked
+                    ? "Open Preview for this draft before exporting"
+                    : "Resolve builder blockers before exporting"
+              }
+              className={`flex items-center gap-1 px-2 py-1.5 rounded-none text-xs font-medium border transition-all duration-150 ${
+                builderStatus.readyToExport
+                  ? "bg-foreground text-background hover:opacity-90 active:scale-[0.98] border-foreground"
+                  : "cursor-not-allowed border-border bg-border text-muted opacity-40"
+              }`}
+              title={
+                builderStatus.readyToExport
+                  ? "Download .py file"
+                  : builderStatus.preview.blocked
+                    ? "Open Preview for this draft before exporting"
+                    : "Resolve builder blockers before exporting"
+              }
             >
               <Download className="w-3.5 h-3.5" />
             </button>

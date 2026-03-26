@@ -9,22 +9,27 @@ import ModeToggle from "./ModeToggle";
 export default function Header() {
   const activeTemplateId = useFlowStore((s) => s.activeTemplateId);
   const editorMode = useFlowStore((s) => s.editorMode);
+  const builderSurface = useFlowStore((s) => s.builderSurface);
   const hasUnsavedChanges = useFlowStore((s) => s.hasUnsavedChanges);
   const lastNamedSaveAt = useFlowStore((s) => s.lastNamedSaveAt);
 
   const modeLabel =
     editorMode === "code"
-      ? "Code Mode"
+      ? "Advanced Code"
       : activeTemplateId === "custom-compose"
-        ? "Custom Compose"
-        : "Template Mode";
+        ? "Advanced Compose"
+        : builderSurface === "advanced"
+          ? "Developer Tools"
+          : "Guided Setup";
 
   const modeHint =
     editorMode === "code"
-      ? "Manual edits override generated code until reset."
+      ? "Advanced editing for manual tweaks after the guided setup is done."
       : activeTemplateId === "custom-compose"
-        ? "Drag or click Add to build block by block."
-        : "Layout is locked; logic comes from the selected template.";
+        ? "Advanced block-by-block mode for power users."
+        : builderSurface === "advanced"
+          ? "Inspect the template canvas and generated output while keeping the guided draft intact."
+          : "Choose a contract type, fill the questions, preview, and export.";
 
   const draftLabel = hasUnsavedChanges
     ? "Unsaved"
@@ -43,7 +48,7 @@ export default function Header() {
             Gen<span className="text-foreground">Flow</span>
           </h1>
           <p className="text-[11px] text-muted leading-none mt-0.5">
-            Visual Builder for GenLayer
+            No-Code Contract Builder
           </p>
         </div>
         <span className="ml-1 px-2 py-0.5 text-[10px] font-display font-medium uppercase tracking-widest rounded-none bg-foreground text-background border border-foreground">
@@ -64,13 +69,12 @@ export default function Header() {
           </span>
         </div>
         <TemplateSwitcher />
-        <div className="w-px h-6 bg-border" />
         <ModeToggle />
       </div>
 
       <div className="flex items-center gap-3">
         <span className="hidden sm:block text-xs text-muted">
-          Pick / Fill / Generate
+          Start here: choose a contract type, then follow the next step card
         </span>
         <a
           href="https://github.com/genflow-labs/genflow"

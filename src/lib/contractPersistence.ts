@@ -5,7 +5,10 @@ import type { Edge, Node } from "@xyflow/react";
 import { getDefaultTemplate, getTemplate } from "@/engine/templateRegistry";
 import type {
   BuilderSnapshot,
+  BuilderSurface,
+  ChatMessage,
   EditorMode,
+  GuidedEntryStep,
   NodeData,
   SavedContract,
   WorkingSession,
@@ -14,7 +17,7 @@ import type {
 export const SAVED_CONTRACTS_STORAGE_KEY = "genflow-contracts";
 export const WORKING_SESSION_STORAGE_KEY = "genflow-working-session";
 export const CURRENT_SAVED_CONTRACT_SCHEMA_VERSION = 1;
-export const CURRENT_WORKING_SESSION_SCHEMA_VERSION = 1;
+export const CURRENT_WORKING_SESSION_SCHEMA_VERSION = 2;
 
 const defaultTemplate = getDefaultTemplate();
 
@@ -43,6 +46,66 @@ function getStorage(): Storage | null {
 
 function sanitizeEditorMode(value: unknown): EditorMode {
   return value === "code" ? "code" : "visual";
+}
+
+function sanitizeBuilderSurface(value: unknown): BuilderSurface {
+  return value === "advanced" ? "advanced" : "guided";
+}
+
+function sanitizeGuidedEntryStep(value: unknown): GuidedEntryStep {
+  return value === "review" ? "review" : "idea";
+}
+
+function deriveBuilderSurface(
+  snapshot: BuilderSnapshot,
+  value: unknown
+): BuilderSurface {
+  if (value === "advanced" || value === "guided") {
+    return sanitizeBuilderSurface(value);
+  }
+
+  return snapshot.activeTemplateId === "custom-compose" || snapshot.editorMode === "code"
+    ? "advanced"
+    : "guided";
+}
+
+function deriveGuidedEntryStep(
+  snapshot: BuilderSnapshot,
+  value: unknown
+): GuidedEntryStep {
+  if (value === "review" || value === "idea") {
+    return sanitizeGuidedEntryStep(value);
+  }
+
+  const cleanSnapshot = createBuilderSnapshotFromTemplate(
+    snapshot.activeTemplateId,
+    snapshot.editorMode
+  );
+
+  return getBuilderSnapshotFingerprint(cleanSnapshot) !==
+    getBuilderSnapshotFingerprint(snapshot)
+    ? "review"
+    : "idea";
+}
+
+function sanitizeChatMessages(input: unknown): ChatMessage[] {
+  if (!Array.isArray(input)) return [];
+
+  return input
+    .map((item) => {
+      if (!item || typeof item !== "object") return null;
+      const message = item as Record<string, unknown>;
+      if (typeof message.id !== "string" || typeof message.content !== "string") {
+        return null;
+      }
+
+      return {
+        id: message.id,
+        role: message.role === "assistant" ? "assistant" : "user",
+        content: message.content,
+      } satisfies ChatMessage;
+    })
+    .filter((message): message is ChatMessage => message !== null);
 }
 
 function sanitizeStorageField(
@@ -245,6 +308,31 @@ export function getBuilderSnapshotFingerprint(
   });
 }
 
+export function getPreviewReviewFingerprint(
+  snapshot: Pick<
+    BuilderSnapshot,
+    "activeTemplateId" | "nodes" | "edges" | "nodeData" | "customCode"
+  >
+): string {
+  return JSON.stringify({
+    activeTemplateId: snapshot.activeTemplateId,
+    nodeData: snapshot.nodeData,
+    customCode: snapshot.customCode,
+    nodes: snapshot.nodes.map((node) => ({
+      id: node.id,
+      type: node.type,
+      position: node.position,
+      data: node.data,
+    })),
+    edges: snapshot.edges.map((edge) => ({
+      id: edge.id,
+      source: edge.source,
+      target: edge.target,
+      type: edge.type,
+    })),
+  });
+}
+
 export function toBuilderSnapshot(session: WorkingSession): BuilderSnapshot {
   return createBuilderSnapshot({
     activeTemplateId: session.activeTemplateId,
@@ -310,7 +398,7 @@ function migrateWorkingSessionRecord(
   if (version > CURRENT_WORKING_SESSION_SCHEMA_VERSION) return null;
 
   const migrated: Record<string, unknown> =
-    version === 0
+    version <= 1
       ? { ...record, schemaVersion: CURRENT_WORKING_SESSION_SCHEMA_VERSION }
       : record;
 
@@ -356,6 +444,29 @@ function migrateWorkingSessionRecord(
       typeof migrated.lastNamedSaveAt === "number" &&
       Number.isFinite(migrated.lastNamedSaveAt)
         ? migrated.lastNamedSaveAt
+        : null,
+    builderSurface: deriveBuilderSurface(snapshot, migrated.builderSurface),
+    guidedEntryStep: deriveGuidedEntryStep(snapshot, migrated.guidedEntryStep),
+    previewReviewFingerprint:
+      typeof migrated.previewReviewFingerprint === "string" &&
+      migrated.previewReviewFingerprint.length > 0
+        ? migrated.previewReviewFingerprint
+        : null,
+    chatMessages: sanitizeChatMessages(migrated.chatMessages),
+    draftSummary:
+      typeof migrated.draftSummary === "string" && migrated.draftSummary.trim().length > 0
+        ? migrated.draftSummary
+        : null,
+    draftAssumptions: Array.isArray(migrated.draftAssumptions)
+      ? migrated.draftAssumptions.filter(
+          (item): item is string => typeof item === "string" && item.trim().length > 0
+        )
+      : [],
+    lastIntentConfidence:
+      migrated.lastIntentConfidence === "high" ||
+      migrated.lastIntentConfidence === "medium" ||
+      migrated.lastIntentConfidence === "low"
+        ? migrated.lastIntentConfidence
         : null,
   };
 }

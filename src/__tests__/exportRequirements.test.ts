@@ -130,4 +130,45 @@ describe("export requirements", () => {
       nodeType: "outputNode",
     });
   });
+
+  it("requires preview review before export in guided template mode", () => {
+    const status = getBuilderStatus(
+      {
+        ...EMPTY_NODE_DATA,
+        contractName: "Demo",
+      },
+      [{ id: "n1", type: "initNode", position: { x: 0, y: 0 }, data: {} }],
+      {
+        activeTemplateId: "simple-storage",
+        enforcePreviewReview: true,
+        previewReviewed: false,
+      }
+    );
+
+    expect(status.readyToExport).toBe(false);
+    expect(status.preview).toMatchObject({
+      required: true,
+      reviewed: false,
+      blocked: true,
+    });
+    expect(status.summary).toContain("Preview");
+  });
+
+  it("allows export once preview has been reviewed for the current draft", () => {
+    const status = getBuilderStatus(
+      {
+        ...EMPTY_NODE_DATA,
+        contractName: "Demo",
+      },
+      [{ id: "n1", type: "initNode", position: { x: 0, y: 0 }, data: {} }],
+      {
+        activeTemplateId: "simple-storage",
+        enforcePreviewReview: true,
+        previewReviewed: true,
+      }
+    );
+
+    expect(status.readyToExport).toBe(true);
+    expect(status.preview.blocked).toBe(false);
+  });
 });

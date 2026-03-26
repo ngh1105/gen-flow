@@ -24,7 +24,14 @@
 - [ ] Smoke test routes: `/`, `/learn`, `/builder`.
 - [ ] Confirm beta notes and browser support docs are up to date in `README.md`.
 - [ ] Confirm autosaved draft restore works after refresh in the target environment.
+- [ ] Confirm `/builder` opens in the chat-first idea workspace for a clean session.
+- [ ] Confirm a plain-language brief produces a draft review before the guided form appears.
 - [ ] Confirm unsupported viewport message is shown below `1024px` and routes users back safely.
+- [ ] Confirm template mode opens in guided setup and does not show the canvas by default.
+- [ ] Confirm guided export stays blocked until Preview has been reviewed for the current draft.
+- [ ] Confirm editing a guided draft after preview requires preview review again before export.
+- [ ] Confirm conversational refinement updates the draft and resets preview review before export.
+- [ ] Confirm advanced tools remain available without breaking the guided draft/autosave state.
 - [ ] Confirm Flow Health issues and quick actions render for an invalid Custom Compose graph.
 - [ ] Confirm project JSON export/import round-trip restores the same builder state.
 - [ ] Confirm Behavior Preview opens, updates with the active graph, and clearly states its client-side limitations.

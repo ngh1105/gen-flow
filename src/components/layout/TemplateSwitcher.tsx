@@ -165,8 +165,15 @@ export default function TemplateSwitcher() {
         className="flex items-center gap-2 px-3 py-1.5 rounded-none border border-border hover:border-foreground bg-surface/60 hover:bg-surface-hover transition-all duration-150 text-sm"
       >
         <ActiveIcon className="w-4 h-4 text-foreground" />
-        <span className="font-medium text-foreground/90 max-w-[160px] truncate">
-          {active?.name || "Select Template"}
+        <span className="flex min-w-0 flex-col items-start text-left">
+          <span className="text-[10px] uppercase tracking-widest text-muted">
+            {activeTemplateId === "custom-compose"
+              ? "Advanced starting point"
+              : "Change contract type"}
+          </span>
+          <span className="font-medium text-foreground/90 max-w-[180px] truncate">
+            {active?.name || "Select Template"}
+          </span>
         </span>
         <ChevronDown
           className={`w-3.5 h-3.5 text-muted transition-transform ${open ? "rotate-180" : ""}`}
@@ -186,8 +193,7 @@ export default function TemplateSwitcher() {
                 </p>
               </div>
               <p className="text-xs text-muted leading-relaxed">
-                Start with a featured use-case template, or switch to Custom Compose when you want
-                full block-by-block control.
+                Start with a guided contract type. Custom Compose is still available as an advanced mode when you need block-by-block control.
               </p>
             </div>
 
@@ -226,10 +232,10 @@ export default function TemplateSwitcher() {
                     <div className="flex items-center justify-between gap-3 mb-3">
                       <div>
                         <p className="text-[10px] font-display font-medium text-muted uppercase tracking-widest">
-                          Compose From Scratch
+                          Advanced Compose
                         </p>
                         <p className="text-[11px] text-muted mt-1">
-                          Blank canvas mode. Drag nodes from the sidebar to build your own flow.
+                          Blank canvas mode for advanced users who want to assemble the flow block by block.
                         </p>
                       </div>
                     </div>

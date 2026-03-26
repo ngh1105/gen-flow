@@ -38,51 +38,51 @@ const TEMPLATE_COUNT = ALL_TEMPLATES.length;
 
 const FEATURES = [
   {
-    icon: Layers,
-    title: "Template-First Builder",
+    icon: Sparkles,
+    title: "Chat-First Drafting",
     description:
-      "Start from ready-made contract flows, or switch to Custom Compose for drag-and-drop generation.",
+      "Describe what you want in plain language and let GenFlow prepare the first draft for you.",
   },
   {
     icon: Code2,
-    title: "Code Editor",
+    title: "Advanced Editor",
     description:
-      "Switch to full code mode when you need manual refinement, lint feedback, and snippet insertion.",
+      "Code mode stays available for technical users, but it is no longer the main path for first-time builders.",
   },
   {
     icon: MousePointerClick,
-    title: "16 Node Types",
+    title: "Optional Advanced Blocks",
     description:
-      "Web, LLM, storage, payable, consensus, bridge, HTTP, and more for block-by-block composition.",
+      "Custom Compose still offers drag-and-drop blocks when your contract needs a more custom flow.",
   },
   {
     icon: FolderOpen,
-    title: "Contract Manager",
+    title: "Portable Drafts",
     description:
-      "Save, load, and download contracts locally without needing a backend.",
+      "Save named milestones locally and move full builder state with project JSON export/import.",
   },
 ];
 
 const STEPS = [
   {
     num: "01",
-    title: "Pick a Starting Point",
-    desc: `Choose from ${TEMPLATE_COUNT} templates or start from Custom Compose.`,
+    title: "Describe The Idea",
+    desc: "Start with a natural-language brief instead of learning the builder first.",
   },
   {
     num: "02",
-    title: "Fill or Compose",
-    desc: "Template mode uses node inputs. Custom Compose lets you drag nodes and optional edges.",
+    title: "Review The Draft",
+    desc: "GenFlow chooses a contract type, fills the first pass, and explains what it assumed.",
   },
   {
     num: "03",
-    title: "Review Generated Python",
-    desc: "Code updates from template inputs or from the active compose graph in real time.",
+    title: "Preview the Behavior",
+    desc: "See what users will input, what the contract depends on, and what the output will look like before export unlocks.",
   },
   {
     num: "04",
     title: "Refine and Export",
-    desc: "Use Code Mode for manual edits, then copy or download the final contract.",
+    desc: "Ask for changes in natural language, preview the user flow, then export when it looks right.",
   },
 ];
 
@@ -117,7 +117,7 @@ export default function LandingPage() {
                 Gen<span className="text-foreground">Flow</span>
               </h1>
               <p className="text-[10px] text-muted leading-none mt-0.5">
-                Visual Builder for GenLayer
+                No-Code Builder for GenLayer
               </p>
             </div>
           </div>
@@ -153,7 +153,7 @@ export default function LandingPage() {
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-none bg-surface-hover border border-foreground mb-6">
             <Sparkles className="w-3.5 h-3.5 text-foreground" />
             <span className="text-xs font-medium text-foreground">
-              Template-first builder with Custom Compose
+              Chat-first drafting with optional developer tools
             </span>
           </div>
 
@@ -167,9 +167,9 @@ export default function LandingPage() {
           </h2>
 
           <p className="text-lg text-muted max-w-3xl mx-auto mb-10 leading-relaxed">
-            Start from rich contract templates for common use cases, or switch to Custom Compose
-            when you want drag-and-drop generation block by block. Python updates in real time,
-            fully in your browser.
+            Describe the contract you want in plain language. GenFlow prepares a first draft,
+            explains its assumptions, walks you through preview, and keeps code and canvas hidden
+            unless you explicitly need them.
           </p>
 
           <div className="flex items-center justify-center gap-4">
@@ -192,7 +192,7 @@ export default function LandingPage() {
             {[
               { value: TEMPLATE_COUNT.toString(), label: "Templates" },
               { value: "16", label: "Node Types" },
-              { value: "0", label: "Lines of Code Needed" },
+              { value: "0", label: "Required Coding" },
               { value: "$0", label: "Server Cost" },
             ].map((stat) => (
               <div key={stat.label} className="text-center">
@@ -209,7 +209,7 @@ export default function LandingPage() {
           <div className="text-center mb-14">
             <h3 className="text-3xl font-bold mb-3">Everything You Need</h3>
             <p className="text-muted max-w-xl mx-auto">
-              Build fast with templates, go deeper with composition, then finish in code when needed.
+              Start with a brief, move through draft review, and only open technical controls if you really need them.
             </p>
           </div>
 
@@ -238,7 +238,7 @@ export default function LandingPage() {
           <div className="text-center mb-14">
             <h3 className="text-3xl font-bold mb-3">Featured Use-Case Templates</h3>
             <p className="text-muted max-w-xl mx-auto">
-              Start from richer business flows, then adjust inputs or switch to code for the last mile.
+              Start from a business-ready contract type, then fill only the details your use case needs.
             </p>
           </div>
 
@@ -287,8 +287,7 @@ export default function LandingPage() {
                   <h4 className="text-sm font-bold">{CUSTOM_COMPOSE_TEMPLATE.name}</h4>
                 </div>
                 <p className="text-xs text-background/80 leading-relaxed">
-                  Drag nodes from the sidebar, add optional edges, and let the compose engine build
-                  methods, imports, fields, guards, and helpers from the active graph.
+                  Advanced mode for power users. Drag blocks from the sidebar only when you need to shape a more custom flow than the guided templates provide.
                 </p>
               </div>
             )}
@@ -321,7 +320,7 @@ export default function LandingPage() {
           <div className="text-center mb-14">
             <h3 className="text-3xl font-bold mb-3">How It Works</h3>
             <p className="text-muted max-w-lg mx-auto">
-              Template mode and Custom Compose are different on purpose. The workflow below reflects the actual app behavior.
+              The main path is intentionally simple: describe, review, preview, export. Advanced composition still exists, but it is optional.
             </p>
           </div>
 
@@ -349,7 +348,7 @@ export default function LandingPage() {
           <div className="text-center mb-14">
             <h3 className="text-3xl font-bold mb-3">16 Node Types</h3>
             <p className="text-muted max-w-lg mx-auto">
-              These nodes are available for composition, and they become drag-and-drop building blocks in Custom Compose.
+              These blocks remain available for advanced composition, but they are optional for the default no-code workflow.
             </p>
           </div>
 
@@ -376,7 +375,7 @@ export default function LandingPage() {
         <div className="max-w-6xl mx-auto px-6 text-center">
           <h3 className="text-4xl font-bold mb-4">Ready to Build?</h3>
           <p className="text-muted max-w-md mx-auto mb-8">
-            Open the builder, choose a template or Custom Compose, and generate your first contract in minutes.
+            Open the builder, describe your contract idea, review the first draft, and export your first contract in minutes.
           </p>
           <Link
             href="/builder"
