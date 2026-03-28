@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { getPreviewScenario } from "@/lib/simulationPreview";
+import {
+  getPreviewScenario,
+  getScenarioCaseValues,
+  simulatePreviewScenario,
+} from "@/lib/simulationPreview";
 import type { NodeData } from "@/store/useFlowStore";
 
 const BASE_NODE_DATA: NodeData = {
@@ -45,6 +49,11 @@ describe("simulation preview", () => {
       expect.arrayContaining(["analyze", "get_result"])
     );
     expect(scenario.steps).toHaveLength(5);
+    expect(scenario.cases.map((previewCase) => previewCase.id)).toEqual([
+      "happy-path",
+      "edge-case",
+      "adversarial",
+    ]);
   });
 
   it("falls back to on-chain state only when no external dependencies are present", () => {
@@ -65,5 +74,84 @@ describe("simulation preview", () => {
 
     expect(scenario.result.dependencies).toContain("On-chain state only");
     expect(scenario.result.methods.length).toBeGreaterThan(0);
+  });
+
+  it("simulates a happy path as ready when required inputs are present", () => {
+    const scenario = getPreviewScenario({
+      activeTemplateId: "ai-arbitrator",
+      nodeData: BASE_NODE_DATA,
+      nodes: [
+        { id: "init-1", type: "initNode", position: { x: 0, y: 0 }, data: {} },
+        { id: "web-1", type: "webFetchNode", position: { x: 0, y: 120 }, data: {} },
+        { id: "llm-1", type: "llmPromptNode", position: { x: 0, y: 240 }, data: {} },
+        { id: "consensus-1", type: "consensusNode", position: { x: 0, y: 360 }, data: {} },
+        { id: "output-1", type: "outputNode", position: { x: 0, y: 480 }, data: {} },
+      ],
+      edges: [],
+    });
+
+    const result = simulatePreviewScenario({
+      scenario,
+      caseId: "happy-path",
+      values: getScenarioCaseValues(scenario, "happy-path"),
+    });
+
+    expect(result.status).toBe("ready");
+    expect(result.findings[0]).toContain("No obvious blockers");
+    expect(result.outputPreview).toContain("analysis");
+  });
+
+  it("flags adversarial prompt injection and untrusted sources for review", () => {
+    const scenario = getPreviewScenario({
+      activeTemplateId: "ai-governance",
+      nodeData: BASE_NODE_DATA,
+      nodes: [
+        { id: "init-1", type: "initNode", position: { x: 0, y: 0 }, data: {} },
+        { id: "storage-1", type: "storageNode", position: { x: 0, y: 120 }, data: {} },
+        { id: "llm-1", type: "llmPromptNode", position: { x: 0, y: 240 }, data: {} },
+        { id: "consensus-1", type: "consensusNode", position: { x: 0, y: 360 }, data: {} },
+        { id: "output-1", type: "outputNode", position: { x: 0, y: 480 }, data: {} },
+      ],
+      edges: [],
+    });
+
+    const result = simulatePreviewScenario({
+      scenario,
+      caseId: "adversarial",
+      values: getScenarioCaseValues(scenario, "adversarial"),
+    });
+
+    expect(result.status).toBe("review");
+    expect(result.activeRisks.map((risk) => risk.label)).toEqual(
+      expect.arrayContaining([
+        "Prompt injection attempt detected",
+        "Adversarial probe is active",
+      ])
+    );
+  });
+
+  it("blocks the scenario when a required URL is missing", () => {
+    const scenario = getPreviewScenario({
+      activeTemplateId: "custom-compose",
+      nodeData: BASE_NODE_DATA,
+      nodes: [
+        { id: "init-1", type: "initNode", position: { x: 0, y: 0 }, data: {} },
+        { id: "web-1", type: "webFetchNode", position: { x: 0, y: 120 }, data: {} },
+        { id: "output-1", type: "outputNode", position: { x: 0, y: 240 }, data: {} },
+      ],
+      edges: [],
+    });
+
+    const result = simulatePreviewScenario({
+      scenario,
+      caseId: "happy-path",
+      values: {
+        ...getScenarioCaseValues(scenario, "happy-path"),
+        "preview-url": "",
+      },
+    });
+
+    expect(result.status).toBe("blocked");
+    expect(result.findings[0]).toContain("Missing required input");
   });
 });
