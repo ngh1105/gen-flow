@@ -183,37 +183,26 @@ function BuilderContent() {
       <Header />
 
       {/* Toolbar row */}
-      <div className="flex items-center justify-between px-4 py-1.5 border-b border-border bg-surface/50">
-        <div className="flex items-center gap-2">
-          {guidedPrimaryAction ? (
-            <>
-              <button
-                onClick={guidedPrimaryAction.onClick}
-                data-testid="guided-toolbar-primary-action"
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-none text-xs font-medium text-background bg-foreground border border-foreground transition-all duration-150 hover:opacity-90"
-              >
-                <ArrowRight className="w-3.5 h-3.5" />
-                {guidedPrimaryAction.label}
-              </button>
-              <button
-                onClick={() => setWizardOpen(true)}
-                data-testid="open-wizard-button"
-                className="flex items-center gap-1.5 px-2.5 py-1 rounded-none text-xs font-medium text-muted hover:text-foreground hover:bg-surface-hover border border-border transition-all duration-150"
-              >
-                <Sparkles className="w-3.5 h-3.5" />
-                Smart Wizard
-              </button>
-            </>
-          ) : (
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/80 bg-surface/70 px-4 py-3 backdrop-blur-xl md:px-5">
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
+          {guidedPrimaryAction && (
             <button
-              onClick={() => setWizardOpen(true)}
-              data-testid="open-wizard-button"
-              className="flex items-center gap-1.5 px-2.5 py-1 rounded-none text-xs font-medium text-foreground hover:bg-surface-hover border border-foreground transition-all duration-150"
+              onClick={guidedPrimaryAction.onClick}
+              data-testid="guided-toolbar-primary-action"
+              className="flex items-center gap-2 rounded-2xl border border-accent-blue/40 bg-accent-blue px-4 py-2 text-xs font-semibold text-background shadow-[0_12px_40px_rgba(56,189,248,0.24)] transition-all duration-150 hover:-translate-y-0.5 hover:bg-accent-blue/90 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-accent-blue/30"
             >
-              <Sparkles className="w-3.5 h-3.5" />
-              Smart Wizard
+              <ArrowRight className="w-3.5 h-3.5" />
+              {guidedPrimaryAction.label}
             </button>
           )}
+          <button
+            onClick={() => setWizardOpen(true)}
+            data-testid="open-wizard-button"
+            className="flex items-center gap-1.5 rounded-2xl border border-border bg-background/70 px-3 py-2 text-xs font-medium text-muted transition-all duration-150 hover:border-accent-purple/50 hover:text-accent-purple focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-accent-purple/20"
+          >
+            <Sparkles className="w-3.5 h-3.5" />
+            Smart Wizard
+          </button>
           <span className="hidden md:block text-[11px] text-muted">
             {guidedPrimaryAction
               ? guidedPrimaryAction.hint
@@ -240,8 +229,8 @@ function BuilderContent() {
             </span>
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          <div className="xl:hidden text-right">
+        <div className="flex min-w-0 flex-wrap items-center justify-start gap-2 sm:justify-end">
+          <div className="xl:hidden min-w-0 text-left sm:text-right">
             <p className="text-[10px] font-display font-medium uppercase tracking-widest text-foreground">
               {draftStateLabel}
             </p>
@@ -250,7 +239,7 @@ function BuilderContent() {
           <button
             onClick={() => setContractsOpen(true)}
             data-testid="open-contracts-button"
-            className="flex items-center gap-1.5 px-2.5 py-1 rounded-none text-xs font-medium text-muted hover:text-foreground hover:bg-surface-hover border border-border transition-all duration-150"
+            className="flex items-center gap-1.5 rounded-2xl border border-border bg-background/70 px-3 py-2 text-xs font-medium text-muted transition-all duration-150 hover:border-accent-blue/50 hover:text-accent-blue focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-accent-blue/20"
           >
             <FolderOpen className="w-3.5 h-3.5" />
             My Contracts
@@ -259,7 +248,7 @@ function BuilderContent() {
             <button
               onClick={() => setPreviewOpen(true)}
               data-testid="open-simulation-preview"
-              className="flex items-center gap-1.5 px-2.5 py-1 rounded-none text-xs font-medium text-muted hover:text-foreground hover:bg-surface-hover border border-border transition-all duration-150"
+              className="flex items-center gap-1.5 rounded-2xl border border-border bg-background/70 px-3 py-2 text-xs font-medium text-muted transition-all duration-150 hover:border-accent-blue/50 hover:text-accent-blue focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-accent-blue/20"
             >
               <FlaskConical className="w-3.5 h-3.5" />
               Preview
