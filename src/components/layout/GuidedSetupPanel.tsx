@@ -69,7 +69,7 @@ function StepBadge({
   complete: boolean;
 }) {
   return (
-    <div className="border border-border bg-background px-4 py-3">
+    <div className="rounded-2xl border border-border bg-background/70 px-4 py-3">
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-[10px] font-display font-medium uppercase tracking-widest text-muted">
@@ -81,7 +81,7 @@ function StepBadge({
         <span
           className={`border px-2 py-0.5 text-[10px] uppercase tracking-widest ${
             complete
-              ? "border-foreground bg-foreground text-background"
+              ? "border-accent-green/30 bg-accent-green/10 text-accent-green"
               : "border-border bg-surface text-foreground"
           }`}
         >
@@ -102,7 +102,7 @@ function FieldStatus({ field }: { field: TemplateFormField }) {
       <span
         className={`shrink-0 border px-2 py-0.5 text-[10px] uppercase tracking-widest ${
           field.done
-            ? "border-foreground bg-foreground text-background"
+            ? "border-accent-green/30 bg-accent-green/10 text-accent-green"
             : "border-border bg-surface text-foreground"
         }`}
       >
@@ -229,16 +229,16 @@ export default function GuidedSetupPanel({
   return (
     <section
       data-testid="no-code-setup-panel"
-      className="flex h-full flex-1 overflow-y-auto bg-surface/80"
+      className="flex h-full flex-1 overflow-y-auto bg-transparent"
     >
-      <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-6 py-6 xl:flex-row">
+      <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-6 py-6 xl:flex-row">
         <div className="min-w-0 flex-1 space-y-5">
-          <div className="border border-border bg-background px-5 py-5">
+          <div className="rounded-[24px] border border-border bg-surface/85 px-6 py-6 shadow-[0_18px_70px_rgba(0,0,0,0.24)]">
             <div className="flex items-start justify-between gap-4">
               <div className="max-w-2xl">
                 <div className="flex items-center gap-2">
-                  <Sparkles className="h-4 w-4 text-foreground" />
-                  <p className="text-[10px] font-display font-medium uppercase tracking-widest text-muted">
+                  <Sparkles className="h-4 w-4 text-accent-blue" />
+                  <p className="text-[10px] font-display font-medium uppercase tracking-widest text-accent-blue">
                     Draft Review
                   </p>
                 </div>
@@ -383,7 +383,7 @@ export default function GuidedSetupPanel({
                             onClick={() => setNumValidators(value)}
                             className={`flex-1 border px-3 py-2 text-sm transition-all duration-150 ${
                               nodeData.numValidators === value
-                                ? "border-foreground bg-foreground text-background"
+                                ? "border-accent-green/30 bg-accent-green/10 text-accent-green"
                                 : "border-border bg-background text-foreground hover:bg-surface-hover"
                             }`}
                           >

@@ -49,20 +49,20 @@ export default function IdeaStartPanel({ onOpenWizard }: IdeaStartPanelProps) {
   return (
     <section
       data-testid="chat-first-shell"
-      className="flex flex-1 overflow-y-auto bg-surface/80"
+      className="flex flex-1 overflow-y-auto bg-transparent"
     >
-      <div className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-6 py-8">
-        <div className="border border-foreground bg-foreground px-6 py-6 text-background">
+      <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-6 py-8">
+        <div className="relative overflow-hidden rounded-[28px] border border-accent-blue/30 bg-surface-elevated px-7 py-7 text-foreground shadow-[0_28px_90px_rgba(0,0,0,0.34)]">
           <div className="flex items-center gap-2">
             <Sparkles className="h-4 w-4" />
-            <p className="text-[10px] uppercase tracking-widest text-background/70">
+            <p className="text-[10px] uppercase tracking-widest text-accent-blue">
               Start with an idea
             </p>
           </div>
           <h2 className="mt-2 text-3xl font-display font-medium">
             Describe the contract you want to build
           </h2>
-          <p className="mt-3 max-w-3xl text-sm leading-relaxed text-background/80">
+          <p className="mt-3 max-w-3xl text-sm leading-relaxed text-muted">
             Write a short brief in natural language. GenFlow will choose a contract type,
             prefill the draft, and then guide you through review, preview, and export.
           </p>
@@ -75,7 +75,7 @@ export default function IdeaStartPanel({ onOpenWizard }: IdeaStartPanelProps) {
               placeholder="I need a contract that fetches a price feed every time a user calls it and stores the latest result."
               rows={6}
               data-testid="idea-brief-input"
-              className="w-full resize-none border border-background/30 bg-background px-4 py-3 text-sm text-foreground placeholder:text-muted/60 focus:border-background focus:outline-none"
+              className="w-full resize-none rounded-2xl border border-border bg-background/70 px-4 py-3 text-sm text-foreground placeholder:text-muted/60 outline-none transition-all duration-150 focus:border-accent-blue/70 focus:ring-4 focus:ring-accent-blue/10"
             />
           </label>
 
@@ -86,7 +86,7 @@ export default function IdeaStartPanel({ onOpenWizard }: IdeaStartPanelProps) {
                 type="button"
                 data-testid={`idea-starter-${index}`}
                 onClick={() => setBrief(prompt)}
-                className="border border-background/25 bg-background/10 px-3 py-1.5 text-xs text-background transition-all duration-150 hover:bg-background/15"
+                className="rounded-full border border-border bg-background/70 px-3 py-1.5 text-xs text-muted transition-all duration-150 hover:border-accent-blue/50 hover:text-accent-blue"
               >
                 {prompt}
               </button>
@@ -98,7 +98,7 @@ export default function IdeaStartPanel({ onOpenWizard }: IdeaStartPanelProps) {
               type="button"
               onClick={handleGenerate}
               data-testid="idea-generate-button"
-              className="inline-flex items-center gap-1.5 border border-background bg-background px-4 py-2 text-sm font-medium text-foreground transition-all duration-150 hover:bg-background/90"
+              className="inline-flex items-center gap-1.5 rounded-2xl border border-accent-blue/40 bg-accent-blue px-4 py-2 text-sm font-semibold text-background transition-all duration-150 hover:-translate-y-0.5 hover:bg-accent-blue/90"
             >
               Generate my contract draft
               <ArrowRight className="h-4 w-4" />
@@ -107,7 +107,7 @@ export default function IdeaStartPanel({ onOpenWizard }: IdeaStartPanelProps) {
               type="button"
               onClick={onOpenWizard}
               data-testid="idea-open-wizard"
-              className="inline-flex items-center gap-1.5 border border-background/25 bg-background/10 px-4 py-2 text-sm text-background transition-all duration-150 hover:bg-background/15"
+              className="inline-flex items-center gap-1.5 rounded-2xl border border-border bg-background/70 px-4 py-2 text-sm text-muted transition-all duration-150 hover:border-accent-purple/50 hover:text-accent-purple"
             >
               <MessageSquareText className="h-4 w-4" />
               More ways to start
@@ -118,14 +118,14 @@ export default function IdeaStartPanel({ onOpenWizard }: IdeaStartPanelProps) {
         {pendingResult && (
           <div
             data-testid="idea-draft-review"
-            className="border border-border bg-background px-6 py-6"
+            className="rounded-[24px] border border-border bg-surface/80 px-6 py-6 shadow-[0_18px_60px_rgba(0,0,0,0.24)]"
           >
             <p className="text-[10px] uppercase tracking-widest text-muted">Draft review</p>
             <div className="mt-2 flex flex-wrap items-center gap-2">
               <h3 className="text-2xl font-display font-medium text-foreground">
                 {pendingTemplate?.name ?? "Recommended draft"}
               </h3>
-              <span className="border border-border bg-surface px-2 py-0.5 text-[10px] uppercase tracking-widest text-foreground">
+              <span className="rounded-full border border-accent-green/30 bg-accent-green/10 px-2.5 py-1 text-[10px] uppercase tracking-widest text-accent-green">
                 {pendingResult.templateRecommendation.confidence} confidence
               </span>
             </div>
