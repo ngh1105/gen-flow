@@ -77,7 +77,7 @@ export default function Header() {
           Start here: choose a contract type, then follow the next step card
         </span>
         <a
-          href="https://github.com/genflow-labs/genflow"
+          href="https://github.com/ngh1105/gen-flow"
           target="_blank"
           rel="noopener noreferrer"
           aria-label="Open GenFlow GitHub repository"

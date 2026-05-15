@@ -129,7 +129,7 @@ export default function LandingPage() {
               Learn
             </Link>
             <a
-              href="https://github.com/genflow-labs/genflow"
+              href="https://github.com/ngh1105/gen-flow"
               target="_blank"
               rel="noopener noreferrer"
               className="flex items-center justify-center w-8 h-8 rounded-none border border-border hover:border-foreground hover:bg-surface-hover transition-all duration-150"
